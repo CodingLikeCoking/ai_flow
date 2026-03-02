@@ -1,0 +1,58 @@
+{
+  "name": "ai-flow",
+  "version": "0.1.0",
+  "description": "Passive local-first AI workflow memory system with MCP access.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "ai",
+    "agent",
+    "mcp",
+    "codex",
+    "claude-code",
+    "cursor",
+    "workflow",
+    "prompt-logging"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "SKILL.md",
+    "docs"
+  ],
+  "bin": {
+    "ai-flow": "./dist/src/bin/ai-flow.js",
+    "ai-flow-mcp": "./dist/src/bin/ai-flow-mcp.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "scan": "tsx src/bin/ai-flow.ts scan",
+    "mcp:stdio": "tsx src/bin/ai-flow-mcp.ts --transport stdio",
+    "mcp:http": "tsx src/bin/ai-flow-mcp.ts --transport http"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.5",
+    "@notionhq/client": "^2.2.15",
+    "better-sqlite3": "^11.10.0",
+    "commander": "^14.0.0",
+    "express": "^5.1.0",
+    "fast-glob": "^3.3.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

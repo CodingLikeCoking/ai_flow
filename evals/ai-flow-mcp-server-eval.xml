@@ -1,0 +1,42 @@
+<evaluation>
+  <qa_pair>
+    <question>Which tool lists registered projects?</question>
+    <answer>ai_flow_list_projects</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool reads the status markdown for one project?</question>
+    <answer>ai_flow_get_project_status</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool lists prompt and plan markdown files for a project?</question>
+    <answer>ai_flow_list_records</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool reads one specific record file?</question>
+    <answer>ai_flow_get_record</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool searches records for a substring?</question>
+    <answer>ai_flow_search_records</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool returns the suggestion backlog for a project?</question>
+    <answer>ai_flow_list_suggestions</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool reads one generated setup guide?</question>
+    <answer>ai_flow_get_setup_guide</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool runs the passive collector immediately?</question>
+    <answer>ai_flow_run_scan</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool attempts a Notion sync?</question>
+    <answer>ai_flow_sync_notion</answer>
+  </qa_pair>
+  <qa_pair>
+    <question>Which tool applies a high-confidence suggestion into a managed block?</question>
+    <answer>ai_flow_apply_suggestion</answer>
+  </qa_pair>
+</evaluation>

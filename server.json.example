@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-24/server.schema.json",
+  "name": "REPLACE_WITH_SERVER_NAME",
+  "description": "Passive local-first AI workflow memory system with MCP access.",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/REPLACE_ME/REPLACE_ME",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "REPLACE_WITH_PACKAGE_NAME",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
