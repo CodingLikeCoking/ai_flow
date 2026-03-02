@@ -118,6 +118,8 @@ Use [`docs/claude-hooks.md`](/Users/owenwong/Desktop/Programming%20Best%20Practi
 ai-flow install claude-hooks
 ```
 
+For Claude Code MCP in this repository, the project also ships a root [`.mcp.json`](/Users/owenwong/Desktop/Programming%20Best%20Practice/.mcp.json) entry for `aiFlow`.
+
 ## Run the MCP Server
 
 ### Default `stdio`

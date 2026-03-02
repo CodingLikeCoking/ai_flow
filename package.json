@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "Passive local-first AI workflow memory system with MCP access.",
   "license": "MIT",
+  "homepage": "https://github.com/CodingLikeCoking/ai_flow",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CodingLikeCoking/ai_flow.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CodingLikeCoking/ai_flow/issues"
+  },
   "type": "module",
   "keywords": [
     "ai",
@@ -15,15 +23,18 @@
     "prompt-logging"
   ],
   "files": [
+    "bin",
     "dist",
+    ".env.example",
     "README.md",
     "LICENSE",
     "SKILL.md",
-    "docs"
+    "docs",
+    "server.json"
   ],
   "bin": {
-    "ai-flow": "./dist/src/bin/ai-flow.js",
-    "ai-flow-mcp": "./dist/src/bin/ai-flow-mcp.js"
+    "ai-flow": "bin/ai-flow.js",
+    "ai-flow-mcp": "bin/ai-flow-mcp.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

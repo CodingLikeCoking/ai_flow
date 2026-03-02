@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { z } from "zod";
 
 import { fileExists, readJsonFile, writeJsonFile } from "../fs/fileIO.js";
@@ -39,6 +42,8 @@ export interface LoadConfigOptions extends ConfigPathOverrides {
 export async function loadAiFlowConfig(
   options: LoadConfigOptions = {}
 ): Promise<AiFlowConfig> {
+  await loadRuntimeEnv(options.homeDir);
+
   const defaults = buildDefaultConfig(options);
 
   if (options.rawConfig) {
@@ -54,6 +59,66 @@ export async function loadAiFlowConfig(
   const stored = await readJsonFile<AiFlowConfig>(defaults.paths.configFile);
   const merged = deepMerge(defaults, stored ?? {});
   return configSchema.parse(merged);
+}
+
+async function loadRuntimeEnv(homeDirOverride?: string): Promise<void> {
+  const candidatePaths: string[] = [];
+  const explicitEnvFile = process.env.AI_FLOW_ENV_FILE?.trim();
+
+  if (explicitEnvFile) {
+    candidatePaths.push(explicitEnvFile);
+  }
+
+  if (process.cwd() !== "/") {
+    candidatePaths.push(join(process.cwd(), ".env"));
+  }
+
+  const homeDir = homeDirOverride ?? process.env.HOME ?? "";
+  if (homeDir) {
+    candidatePaths.push(join(homeDir, ".ai-flow", ".env"));
+  }
+
+  for (const envPath of candidatePaths) {
+    if (!(await fileExists(envPath))) {
+      continue;
+    }
+
+    const contents = await readFile(envPath, "utf8");
+    applyDotEnv(contents);
+  }
+}
+
+function applyDotEnv(contents: string): void {
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = line.slice(0, separatorIndex).trim();
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+
+    let value = line.slice(separatorIndex + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+
+    if (value === "") {
+      continue;
+    }
+
+    process.env[key] = value;
+  }
 }
 
 function deepMerge<T>(base: T, patch: Partial<T>): T {

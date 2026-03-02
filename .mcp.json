@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "aiFlow": {
+      "command": "/opt/homebrew/bin/node",
+      "args": [
+        "/opt/homebrew/lib/node_modules/ai-flow/dist/src/bin/ai-flow-mcp.js",
+        "--transport",
+        "stdio"
+      ]
+    }
+  }
+}

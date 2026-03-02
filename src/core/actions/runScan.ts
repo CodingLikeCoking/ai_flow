@@ -1,3 +1,4 @@
+import { readFile, rm } from "node:fs/promises";
 import { basename } from "node:path";
 
 import fg from "fast-glob";
@@ -21,7 +22,7 @@ import { readProjectRegistryEntry } from "../registry/projectRegistry.js";
 import { renderPlanMarkdown } from "../renderers/planRenderer.js";
 import { renderPromptMarkdown } from "../renderers/promptRenderer.js";
 import { renderSetupGuideMarkdown } from "../renderers/setupGuideRenderer.js";
-import { writeTextFile } from "../fs/fileIO.js";
+import { fileExists, readJsonFile, writeTextFile } from "../fs/fileIO.js";
 import { appendSuggestionsToMarkdown } from "../suggestions/suggestionQueue.js";
 import { exportDataset } from "./exportDataset.js";
 import { rebuildProjectStatus } from "./rebuildStatus.js";
@@ -36,6 +37,8 @@ export interface RunScanOptions {
 }
 
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
+  await migrateLegacyPlanFiles(options.config);
+
   const events = options.events ?? (await collectAllAdapterEvents(options.config));
   const grouped = groupEvents(events);
   const writtenRecords: NormalizedRecord[] = [];
@@ -53,18 +56,18 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
     writtenRecords.push(record);
 
     const projectPaths = getProjectPaths(projectEntry.projectPath, projectEntry.projectSlug);
-    const sequence = await nextSequence(
-      record.kind === "PLAN" ? "plan-*.md" : "prompt-*.md",
-      projectPaths.taskDir(record.taskSlug)
-    );
+    const sequence =
+      record.kind === "PLAN"
+        ? null
+        : await nextSequence("prompt-*.md", projectPaths.taskDir(record.taskSlug));
     const fileName =
       record.kind === "PLAN"
-        ? `plan-${String(sequence).padStart(3, "0")}.md`
+        ? "plan.md"
         : `prompt-${String(sequence).padStart(3, "0")}.md`;
     const targetFile =
       record.kind === "PLAN"
-        ? projectPaths.taskPlanFile(record.taskSlug, sequence)
-        : projectPaths.taskPromptFile(record.taskSlug, sequence);
+        ? projectPaths.taskPlanDocumentFile(record.taskSlug)
+        : projectPaths.taskPromptFile(record.taskSlug, sequence ?? 1);
     const rendered =
       record.kind === "PLAN" ? renderPlanMarkdown(record) : renderPromptMarkdown(record);
 
@@ -113,6 +116,60 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
     suggestionsApplied,
     warnings
   };
+}
+
+async function migrateLegacyPlanFiles(config: AiFlowConfig): Promise<void> {
+  const registryFiles = await fg("*.json", {
+    cwd: config.paths.projectsDir,
+    absolute: true,
+    onlyFiles: true,
+    suppressErrors: true
+  });
+
+  for (const registryFile of registryFiles) {
+    const entry = await readJsonFile<ProjectRegistryEntry>(registryFile);
+    if (!entry) {
+      continue;
+    }
+
+    const projectPaths = getProjectPaths(entry.projectPath, entry.projectSlug);
+    const taskDirs = await fg("*", {
+      cwd: projectPaths.promptDir,
+      absolute: true,
+      onlyDirectories: true,
+      suppressErrors: true
+    });
+
+    for (const taskDir of taskDirs) {
+      const taskSlug = basename(taskDir);
+      if (taskSlug === "_project") {
+        continue;
+      }
+
+      const legacyPlanFiles = (await fg("plan-*.md", {
+        cwd: taskDir,
+        absolute: true,
+        onlyFiles: true,
+        suppressErrors: true
+      })).sort();
+
+      if (legacyPlanFiles.length === 0) {
+        continue;
+      }
+
+      const stablePlanPath = projectPaths.taskPlanDocumentFile(taskSlug);
+
+      if (!(await fileExists(stablePlanPath))) {
+        const latestLegacyPath = legacyPlanFiles.at(-1);
+        if (latestLegacyPath) {
+          const latestContents = await readFile(latestLegacyPath, "utf8");
+          await writeTextFile(stablePlanPath, latestContents);
+        }
+      }
+
+      await Promise.all(legacyPlanFiles.map((path) => rm(path, { force: true })));
+    }
+  }
 }
 
 function groupEvents(events: AdapterEvent[]): Array<{ key: string; projectPath: string | null; events: AdapterEvent[] }> {

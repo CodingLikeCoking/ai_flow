@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-24/server.schema.json",
+  "name": "ai-flow",
+  "description": "Passive local-first AI workflow memory system with MCP access.",
+  "status": "active",
+  "repository": {
+    "url": "https://github.com/CodingLikeCoking/ai_flow",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "ai-flow",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

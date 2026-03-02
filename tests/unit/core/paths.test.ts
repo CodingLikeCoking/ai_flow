@@ -19,6 +19,9 @@ describe("path helpers", () => {
     expect(paths.taskPlanFile("demo-task", 2)).toBe(
       "/tmp/My Project/prompt/demo-task/plan-002.md"
     );
+    expect(paths.taskPlanDocumentFile("demo-task")).toBe(
+      "/tmp/My Project/prompt/demo-task/plan.md"
+    );
   });
 
   it("builds canonical Desktop global mirror paths", () => {

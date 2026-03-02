@@ -63,6 +63,9 @@ export function getProjectPaths(projectRoot: string, projectSlug: string) {
     taskPlanFile(taskSlug: string, sequence: number) {
       return join(promptDir, taskSlug, `plan-${padSequence(sequence)}.md`);
     },
+    taskPlanDocumentFile(taskSlug: string) {
+      return join(promptDir, taskSlug, "plan.md");
+    },
     setupGuideFile(taskSlug: string, guideSlug: string) {
       return join(promptDir, taskSlug, `setup-guide-${guideSlug}.md`);
     }

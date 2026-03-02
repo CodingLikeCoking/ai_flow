@@ -1,4 +1,4 @@
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -39,5 +39,44 @@ describe("config loader", () => {
         }
       })
     ).rejects.toThrow("scanIntervalSeconds");
+  });
+
+  it("loads runtime environment values from ~/.ai-flow/.env when process env is empty", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-env-"));
+    const aiFlowDir = join(homeDir, ".ai-flow");
+    const envPath = join(aiFlowDir, ".env");
+    const previousCwd = process.cwd();
+    tempRoots.push(homeDir);
+
+    mkdirSync(aiFlowDir, { recursive: true });
+    writeFileSync(
+      envPath,
+      "NOTION_TOKEN=test-token\nNOTION_DATABASE_ID=test-db\nAI_FLOW_MCP_TOKEN=test-mcp-token\n",
+      "utf8"
+    );
+
+    const previous = {
+      NOTION_TOKEN: process.env.NOTION_TOKEN,
+      NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID,
+      AI_FLOW_MCP_TOKEN: process.env.AI_FLOW_MCP_TOKEN
+    };
+
+    delete process.env.NOTION_TOKEN;
+    delete process.env.NOTION_DATABASE_ID;
+    delete process.env.AI_FLOW_MCP_TOKEN;
+    process.chdir("/");
+
+    try {
+      await loadAiFlowConfig({ homeDir });
+
+      expect(process.env.NOTION_TOKEN).toBe("test-token");
+      expect(process.env.NOTION_DATABASE_ID).toBe("test-db");
+      expect(process.env.AI_FLOW_MCP_TOKEN).toBe("test-mcp-token");
+    } finally {
+      process.chdir(previousCwd);
+      process.env.NOTION_TOKEN = previous.NOTION_TOKEN;
+      process.env.NOTION_DATABASE_ID = previous.NOTION_DATABASE_ID;
+      process.env.AI_FLOW_MCP_TOKEN = previous.AI_FLOW_MCP_TOKEN;
+    }
   });
 });
