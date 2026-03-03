@@ -4,7 +4,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { getProjectPaths } from "../../core/fs/paths.js";
-import { readProjectRegistryEntry } from "../../core/registry/projectRegistry.js";
 import type { AiFlowMcpContext } from "../server.js";
 
 export function registerGetSetupGuideTool(
@@ -34,7 +33,7 @@ export function registerGetSetupGuideTool(
       }
     },
     async ({ project_slug, task_slug, guide_slug, response_format }) => {
-      const entry = await readProjectRegistryEntry(context.config, project_slug);
+      const entry = context.db.getProject(project_slug);
       const path = entry
         ? getProjectPaths(entry.projectPath, entry.projectSlug).setupGuideFile(task_slug, guide_slug)
         : "";

@@ -1,0 +1,11 @@
+prompt/
+*.db
+*.db-wal
+*.db-shm
+.env
+node_modules
+tests/
+docs/
+examples/
+evals/
+coverage/

@@ -1,13 +1,11 @@
-import { readFile } from "node:fs/promises";
-
-import fg from "fast-glob";
 import {
   McpServer,
   ResourceTemplate
 } from "@modelcontextprotocol/sdk/server/mcp.js";
 
-import { getProjectPaths } from "../core/fs/paths.js";
-import { readProjectRegistryEntry } from "../core/registry/projectRegistry.js";
+import { rebuildProjectStatus } from "../core/actions/rebuildStatus.js";
+import { renderPromptMarkdown } from "../core/renderers/promptRenderer.js";
+import { renderPlanMarkdown } from "../core/renderers/planRenderer.js";
 import type { AiFlowMcpContext } from "./server.js";
 
 export function registerAiFlowResources(
@@ -24,17 +22,12 @@ export function registerAiFlowResources(
       description: "All registered ai-flow projects."
     },
     async (uri) => {
-      const files = await fg("*.json", {
-        cwd: context.config.paths.projectsDir,
-        absolute: true,
-        suppressErrors: true
-      });
-      const items = files.map((file) => file.split("/").at(-1)?.replace(/\.json$/, ""));
+      const { items } = context.db.listProjects(100, 0);
       return {
         contents: [
           {
             uri: uri.toString(),
-            text: `# Projects\n\n${items.map((item) => `- ${item}`).join("\n")}\n`,
+            text: `# Projects\n\n${items.map((e) => `- ${e.projectSlug}`).join("\n")}\n`,
             mimeType: "text/markdown"
           }
         ]
@@ -48,11 +41,17 @@ export function registerAiFlowResources(
     "project-status",
     "ai-flow://project/{project_slug}/status",
     async (projectSlug) => {
-      const entry = await readProjectRegistryEntry(context.config, projectSlug);
-      if (!entry) {
-        return "# Missing project\n";
-      }
-      return safeRead(getProjectPaths(entry.projectPath, entry.projectSlug).projectStatusFile);
+      const project = context.db.getProject(projectSlug);
+      if (!project) return "# Missing project\n";
+      const view = await rebuildProjectStatus(
+        context.config,
+        project.projectName,
+        project.projectPath,
+        project.projectSlug,
+        [],
+        context.db
+      );
+      return view.statusMarkdown;
     },
     names
   );
@@ -63,11 +62,17 @@ export function registerAiFlowResources(
     "project-timeline",
     "ai-flow://project/{project_slug}/timeline",
     async (projectSlug) => {
-      const entry = await readProjectRegistryEntry(context.config, projectSlug);
-      if (!entry) {
-        return "# Missing project\n";
-      }
-      return safeRead(getProjectPaths(entry.projectPath, entry.projectSlug).timelineFile);
+      const project = context.db.getProject(projectSlug);
+      if (!project) return "# Missing project\n";
+      const view = await rebuildProjectStatus(
+        context.config,
+        project.projectName,
+        project.projectPath,
+        project.projectSlug,
+        [],
+        context.db
+      );
+      return view.timelineMarkdown;
     },
     names
   );
@@ -78,11 +83,11 @@ export function registerAiFlowResources(
     "project-patterns",
     "ai-flow://project/{project_slug}/patterns",
     async (projectSlug) => {
-      const entry = await readProjectRegistryEntry(context.config, projectSlug);
-      if (!entry) {
-        return "# Missing project\n";
-      }
-      return safeRead(getProjectPaths(entry.projectPath, entry.projectSlug).reusablePatternsFile);
+      const records = context.db.allRecords(projectSlug);
+      const allPatterns = records.flatMap((r) => r.reusablePatterns);
+      if (allPatterns.length === 0) return "# Reusable Patterns\n\nNone captured yet.\n";
+      const unique = [...new Set(allPatterns)];
+      return `# Reusable Patterns\n\n${unique.map((p) => `- ${p}`).join("\n")}\n`;
     },
     names
   );
@@ -94,36 +99,21 @@ export function registerAiFlowResources(
     }),
     {
       title: "Project Record",
-      description: "Read a specific project record by file fragment."
+      description: "Read a specific project record by ID."
     },
     async (uri, variables) => {
-      const projectSlug = String(variables.project_slug ?? "");
       const recordId = String(variables.record_id ?? "");
-      const entry = await readProjectRegistryEntry(context.config, projectSlug);
-      if (!entry) {
-        return {
-          contents: [
-            {
-              uri: uri.toString(),
-              text: "# Missing project\n",
-              mimeType: "text/markdown"
-            }
-          ]
-        };
-      }
+      const record = context.db.getRecord(recordId);
 
-      const files = await fg("**/*.md", {
-        cwd: `${entry.projectPath}/prompt`,
-        absolute: true,
-        suppressErrors: true
-      });
-      const match = files.find((file) => file.includes(recordId));
+      const text = record
+        ? (record.kind === "PLAN" ? renderPlanMarkdown(record) : renderPromptMarkdown(record))
+        : "# Missing record\n";
 
       return {
         contents: [
           {
             uri: uri.toString(),
-            text: match ? await safeRead(match) : "# Missing record\n",
+            text,
             mimeType: "text/markdown"
           }
         ]
@@ -137,7 +127,7 @@ export function registerAiFlowResources(
 
 function registerProjectTemplateResource(
   server: McpServer,
-  context: AiFlowMcpContext,
+  _context: AiFlowMcpContext,
   name: string,
   template: string,
   getText: (projectSlug: string) => Promise<string>,
@@ -165,13 +155,4 @@ function registerProjectTemplateResource(
   );
 
   names.push(template);
-  void context;
-}
-
-async function safeRead(path: string): Promise<string> {
-  try {
-    return await readFile(path, "utf8");
-  } catch {
-    return "# File not found\n";
-  }
 }

@@ -1,14 +1,12 @@
-import { mkdir } from "node:fs/promises";
-
-import { getGlobalProjectPaths, getProjectPaths, slugifyProjectName } from "../fs/paths.js";
-import { writeTextFile } from "../fs/fileIO.js";
-import { writeProjectRegistryEntry } from "../registry/projectRegistry.js";
+import { slugifyProjectName } from "../fs/paths.js";
 import type { AiFlowConfig, ProjectRegistryEntry } from "../types.js";
+import { AiFlowDatabase, openDatabase } from "../db/database.js";
 
 export interface InitProjectOptions {
   config: AiFlowConfig;
   projectPath: string;
   projectName: string;
+  db?: AiFlowDatabase;
 }
 
 export async function initProject(options: InitProjectOptions): Promise<{
@@ -25,54 +23,17 @@ export async function initProject(options: InitProjectOptions): Promise<{
     updatedAt: now
   };
 
-  const localPaths = getProjectPaths(options.projectPath, projectSlug);
-  const globalPaths = getGlobalProjectPaths(projectSlug, options.config.paths.desktopDir);
+  const db = options.db ?? openDatabase(options.config);
+  const shouldCloseDb = !options.db;
 
-  await mkdir(localPaths.projectMetaDir, { recursive: true });
-  await mkdir(globalPaths.projectDir, { recursive: true });
-
-  await Promise.all([
-    writeTextFile(
-      localPaths.projectStatusFile,
-      buildProjectStatusMarkdown(options.projectName, projectSlug, now)
-    ),
-    writeTextFile(localPaths.timelineFile, "# Timeline\n\n"),
-    writeTextFile(localPaths.reusablePatternsFile, "# Reusable Patterns\n\n"),
-    writeTextFile(localPaths.skillBacklogFile, "# Skill Backlog\n\n"),
-    writeTextFile(localPaths.automationBacklogFile, "# Automation Backlog\n\n"),
-    writeTextFile(globalPaths.indexFile, `# ${options.projectName}\n\n- Project slug: ${projectSlug}\n`),
-    writeTextFile(globalPaths.projectStatusFile, buildProjectStatusMarkdown(options.projectName, projectSlug, now)),
-    writeTextFile(globalPaths.timelineFile, "# Timeline\n\n")
-  ]);
-
-  await writeProjectRegistryEntry(options.config, entry);
+  try {
+    db.upsertProject(entry);
+  } finally {
+    if (shouldCloseDb) db.close();
+  }
 
   return {
     projectSlug,
     entry
   };
-}
-
-function buildProjectStatusMarkdown(
-  projectName: string,
-  projectSlug: string,
-  timestamp: string
-): string {
-  return [
-    `# ${projectName} Status`,
-    "",
-    `- Project slug: ${projectSlug}`,
-    `- Updated at: ${timestamp}`,
-    "- Current phase: Bootstrapped",
-    "",
-    "## Completed Tasks",
-    "- Project initialized",
-    "",
-    "## Open Tasks",
-    "- Start passive scanning",
-    "",
-    "## Next Directions",
-    "- Configure the collector",
-    ""
-  ].join("\n");
 }

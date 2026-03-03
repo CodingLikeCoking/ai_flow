@@ -1,21 +1,24 @@
-import { readFile } from "node:fs/promises";
-
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-export function registerGetRecordTool(server: McpServer): string {
+import { renderPromptMarkdown } from "../../core/renderers/promptRenderer.js";
+import { renderPlanMarkdown } from "../../core/renderers/planRenderer.js";
+import type { AiFlowMcpContext } from "../server.js";
+
+export function registerGetRecordTool(
+  server: McpServer,
+  context: AiFlowMcpContext
+): string {
   const name = "ai_flow_get_record";
 
   server.registerTool(
     name,
     {
       title: "Get Record",
-      description: "Read a record markdown file by absolute path.",
+      description: "Get a single record by its ID, rendered as markdown or JSON.",
       inputSchema: {
-        file_path: z.string().min(1),
-        response_format: z.enum(["markdown", "json"]).default("markdown"),
-        limit: z.number().int().min(1).max(100).default(20),
-        offset: z.number().int().min(0).default(0)
+        record_id: z.string().min(1),
+        response_format: z.enum(["markdown", "json"]).default("markdown")
       },
       annotations: {
         readOnlyHint: true,
@@ -24,12 +27,27 @@ export function registerGetRecordTool(server: McpServer): string {
         openWorldHint: false
       }
     },
-    async ({ file_path, response_format }) => {
-      const text = await readFile(file_path, "utf8");
-      const output = { file_path, text };
+    async ({ record_id, response_format }) => {
+      const record = context.db.getRecord(record_id);
+
+      if (!record) {
+        return {
+          content: [{ type: "text", text: `Record not found: ${record_id}` }],
+          isError: true
+        };
+      }
+
+      const markdown =
+        record.kind === "PLAN" ? renderPlanMarkdown(record) : renderPromptMarkdown(record);
+
       return {
-        content: [{ type: "text", text: response_format === "json" ? JSON.stringify(output, null, 2) : text }],
-        structuredContent: output
+        content: [
+          {
+            type: "text",
+            text: response_format === "json" ? JSON.stringify(record, null, 2) : markdown
+          }
+        ],
+        structuredContent: { ...record }
       };
     }
   );

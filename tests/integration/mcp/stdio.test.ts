@@ -8,7 +8,11 @@ describe("mcp stdio integration smoke", () => {
     const config = await loadAiFlowConfig();
     const bundle = await createAiFlowMcpServer(config);
 
-    expect(bundle.server).toBeDefined();
-    expect(bundle.toolNames).toContain("ai_flow_list_projects");
+    try {
+      expect(bundle.server).toBeDefined();
+      expect(bundle.toolNames).toContain("ai_flow_list_projects");
+    } finally {
+      bundle.context.db.close();
+    }
   });
 });

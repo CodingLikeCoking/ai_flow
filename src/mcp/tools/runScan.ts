@@ -30,7 +30,7 @@ export function registerRunScanTool(
         throw new Error("confirm_write must be true");
       }
 
-      const result = await runScan({ config: context.config });
+      const result = await runScan({ config: context.config, db: context.db });
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         structuredContent: { ...result }

@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
 
 import { runScan } from "../../../src/core/actions/runScan.js";
 import { loadAiFlowConfig } from "../../../src/core/config/loadConfig.js";
+import { AiFlowDatabase } from "../../../src/core/db/database.js";
 
 describe("runScan", () => {
   it("skips sessions when launchd-style execution has no resolvable project path", async () => {
     const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-runscan-"));
     const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+    const db = new AiFlowDatabase(":memory:");
     const previousCwd = process.cwd();
 
     process.chdir("/");
@@ -18,6 +20,7 @@ describe("runScan", () => {
     try {
       const result = await runScan({
         config,
+        db,
         events: [
           {
             agent: "claude",
@@ -36,6 +39,7 @@ describe("runScan", () => {
       );
     } finally {
       process.chdir(previousCwd);
+      db.close();
     }
   });
 });

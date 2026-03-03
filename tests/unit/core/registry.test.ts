@@ -6,26 +6,32 @@ import { describe, expect, it } from "vitest";
 
 import { loadAiFlowConfig } from "../../../src/core/config/loadConfig.js";
 import { initProject } from "../../../src/core/actions/initProject.js";
-import { readProjectRegistryEntry } from "../../../src/core/registry/projectRegistry.js";
+import { AiFlowDatabase } from "../../../src/core/db/database.js";
 
 describe("project registry", () => {
-  it("registers a project and creates prompt skeleton directories", async () => {
+  it("registers a project in the database", async () => {
     const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-registry-"));
     const projectRoot = join(sandbox, "My Project");
     const config = await loadAiFlowConfig({
       homeDir: sandbox,
       desktopDir: sandbox
     });
+    const db = new AiFlowDatabase(":memory:");
 
-    const result = await initProject({
-      config,
-      projectPath: projectRoot,
-      projectName: "My Project"
-    });
+    try {
+      const result = await initProject({
+        config,
+        projectPath: projectRoot,
+        projectName: "My Project",
+        db
+      });
 
-    const entry = await readProjectRegistryEntry(config, result.projectSlug);
+      const entry = db.getProject(result.projectSlug);
 
-    expect(result.projectSlug).toBe("my-project");
-    expect(entry?.projectPath).toBe(projectRoot);
+      expect(result.projectSlug).toBe("my-project");
+      expect(entry?.projectPath).toBe(projectRoot);
+    } finally {
+      db.close();
+    }
   });
 });

@@ -8,12 +8,16 @@ describe("mcp resource registration", () => {
     const config = await loadAiFlowConfig();
     const bundle = await createAiFlowMcpServer(config);
 
-    expect(bundle.resourceNames).toEqual([
-      "ai-flow://projects",
-      "ai-flow://project/{project_slug}/status",
-      "ai-flow://project/{project_slug}/timeline",
-      "ai-flow://project/{project_slug}/patterns",
-      "ai-flow://project/{project_slug}/records/{record_id}"
-    ]);
+    try {
+      expect(bundle.resourceNames).toEqual([
+        "ai-flow://projects",
+        "ai-flow://project/{project_slug}/status",
+        "ai-flow://project/{project_slug}/timeline",
+        "ai-flow://project/{project_slug}/patterns",
+        "ai-flow://project/{project_slug}/records/{record_id}"
+      ]);
+    } finally {
+      bundle.context.db.close();
+    }
   });
 });

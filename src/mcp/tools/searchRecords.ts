@@ -1,10 +1,8 @@
-import { readFile } from "node:fs/promises";
-
-import fg from "fast-glob";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { readProjectRegistryEntry } from "../../core/registry/projectRegistry.js";
+import { renderPromptMarkdown } from "../../core/renderers/promptRenderer.js";
+import { renderPlanMarkdown } from "../../core/renderers/planRenderer.js";
 import type { AiFlowMcpContext } from "../server.js";
 
 export function registerSearchRecordsTool(
@@ -17,7 +15,7 @@ export function registerSearchRecordsTool(
     name,
     {
       title: "Search Records",
-      description: "Search markdown records for a substring.",
+      description: "Full-text search across all recorded prompts and plans.",
       inputSchema: {
         project_slug: z.string().min(1),
         query: z.string().min(1),
@@ -33,39 +31,26 @@ export function registerSearchRecordsTool(
       }
     },
     async ({ project_slug, query, response_format, limit, offset }) => {
-      const entry = await readProjectRegistryEntry(context.config, project_slug);
-      const files = entry
-        ? await fg("**/*.md", {
-            cwd: `${entry.projectPath}/prompt`,
-            absolute: true,
-            suppressErrors: true
-          })
-        : [];
-      const hits: Array<{ file: string; preview: string }> = [];
+      const { total, items } = context.db.searchRecords(project_slug, query, limit, offset);
+      const rendered = items.map((record) => ({
+        record_id: record.recordId,
+        task_slug: record.taskSlug,
+        kind: record.kind,
+        agent: record.agent,
+        ended_at: record.endedAt,
+        preview: record.summary.slice(0, 200)
+      }));
+      const output = { total, count: rendered.length, offset, items: rendered };
 
-      for (const file of files) {
-        const text = await readFile(file, "utf8");
-        if (text.toLowerCase().includes(query.toLowerCase())) {
-          hits.push({
-            file,
-            preview: text.split("\n").slice(0, 4).join("\n")
-          });
-        }
-      }
-
-      const sliced = hits.slice(offset, offset + limit);
-      const output = { total: hits.length, count: sliced.length, offset, items: sliced };
+      const text =
+        response_format === "json"
+          ? JSON.stringify(output, null, 2)
+          : items
+              .map((r) => (r.kind === "PLAN" ? renderPlanMarkdown(r) : renderPromptMarkdown(r)))
+              .join("\n---\n\n");
 
       return {
-        content: [
-          {
-            type: "text",
-            text:
-              response_format === "json"
-                ? JSON.stringify(output, null, 2)
-                : `# Search Results\n\n${sliced.map((item) => `- ${item.file}`).join("\n")}\n`
-          }
-        ],
+        content: [{ type: "text", text: text || "No results found." }],
         structuredContent: output
       };
     }

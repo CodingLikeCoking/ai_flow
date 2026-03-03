@@ -11,9 +11,11 @@ import { rebuildProjectStatus } from "../core/actions/rebuildStatus.js";
 import { runScan } from "../core/actions/runScan.js";
 import { syncNotionRecords } from "../core/actions/syncNotion.js";
 import { installClaudeHooks } from "../core/adapters/claudeHookInstaller.js";
-import { readProjectRegistryEntry } from "../core/registry/projectRegistry.js";
 import { loadAiFlowConfig } from "../core/config/loadConfig.js";
 import { initProject } from "../core/actions/initProject.js";
+import { openDatabase } from "../core/db/database.js";
+import { migrateToDatabase } from "../core/db/migrate.js";
+import { exportClone } from "../core/actions/exportClone.js";
 
 export function buildAiFlowProgram(): Command {
   const program = new Command();
@@ -50,18 +52,33 @@ export function buildAiFlowProgram(): Command {
     })
   );
 
+  program.command("migrate").action(() =>
+    runWithConfig(async (config) => {
+      const db = openDatabase(config);
+      try {
+        const result = await migrateToDatabase(db, config);
+        process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+      } finally {
+        db.close();
+      }
+    })
+  );
+
   const sync = program.command("sync");
   sync.command("notion").option("--project <slug>").action((options) =>
     runWithConfig(async (config) => {
-      const entry = options.project
-        ? await readProjectRegistryEntry(config, options.project)
-        : null;
-      const result = await syncNotionRecords(config, [], {
-        projectSlug: entry?.projectSlug
-      });
-      process.stdout.write(
-        `${JSON.stringify({ project: entry?.projectSlug ?? null, ...result }, null, 2)}\n`
-      );
+      const db = openDatabase(config);
+      try {
+        const entry = options.project ? db.getProject(options.project) : null;
+        const result = await syncNotionRecords(config, [], {
+          projectSlug: entry?.projectSlug
+        });
+        process.stdout.write(
+          `${JSON.stringify({ project: entry?.projectSlug ?? null, ...result }, null, 2)}\n`
+        );
+      } finally {
+        db.close();
+      }
     })
   );
 
@@ -70,19 +87,24 @@ export function buildAiFlowProgram(): Command {
     .requiredOption("--project <slug>")
     .action((options) =>
       runWithConfig(async (config) => {
-        const entry = await readProjectRegistryEntry(config, options.project);
-        if (!entry) {
-          throw new Error(`Unknown project slug: ${options.project}`);
+        const db = openDatabase(config);
+        try {
+          const entry = db.getProject(options.project);
+          if (!entry) {
+            throw new Error(`Unknown project slug: ${options.project}`);
+          }
+          const view = await rebuildProjectStatus(
+            config,
+            entry.projectName,
+            entry.projectPath,
+            entry.projectSlug,
+            [],
+            db
+          );
+          process.stdout.write(`${view.statusMarkdown}\n`);
+        } finally {
+          db.close();
         }
-
-        await rebuildProjectStatus(
-          config,
-          entry.projectName,
-          entry.projectPath,
-          entry.projectSlug,
-          []
-        );
-        process.stdout.write(`Rebuilt status for ${entry.projectSlug}\n`);
       })
     );
 
@@ -90,9 +112,28 @@ export function buildAiFlowProgram(): Command {
   exportCommand.command("dataset").action(() =>
     runWithConfig(async (config) => {
       await exportDataset(config, []);
-      process.stdout.write("Exported empty dataset scaffold.\n");
+      process.stdout.write("Dataset exported.\n");
     })
   );
+  exportCommand
+    .command("clone")
+    .option("--format <format>", "Export format: openai, anthropic, ndjson", "openai")
+    .option("--project <slug>", "Filter by project slug")
+    .option("--agent <agent>", "Filter by agent")
+    .option("--since <date>", "Include records after this ISO date")
+    .option("--output <path>", "Output file path")
+    .action((options) =>
+      runWithConfig(async (config) => {
+        const outputPath = await exportClone(config, {
+          format: options.format,
+          projectSlug: options.project,
+          agent: options.agent,
+          since: options.since,
+          outputPath: options.output
+        });
+        process.stdout.write(`Clone training data exported to ${outputPath}\n`);
+      })
+    );
 
   const install = program.command("install");
   install.command("claude-hooks").action(async () => {

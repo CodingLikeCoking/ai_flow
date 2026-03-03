@@ -14,7 +14,7 @@ export function registerRegisterProjectTool(
     name,
     {
       title: "Register Project",
-      description: "Register a project and create the ai-flow prompt skeleton.",
+      description: "Register a project in the ai-flow database.",
       inputSchema: {
         project_path: z.string().min(1),
         project_name: z.string().min(1),
@@ -35,7 +35,8 @@ export function registerRegisterProjectTool(
       const result = await initProject({
         config: context.config,
         projectPath: project_path,
-        projectName: project_name
+        projectName: project_name,
+        db: context.db
       });
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],

@@ -4,3 +4,6 @@ dist
 .env
 coverage
 prompt/
+*.db
+*.db-wal
+*.db-shm

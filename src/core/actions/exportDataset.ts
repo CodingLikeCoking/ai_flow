@@ -1,18 +1,29 @@
-import type { AiFlowConfig, NormalizedRecord } from "../types.js";
+import type { AiFlowConfig } from "../types.js";
 import { writeTextFile } from "../fs/fileIO.js";
+import { AiFlowDatabase, openDatabase } from "../db/database.js";
 
 export async function exportDataset(
   config: AiFlowConfig,
-  records: NormalizedRecord[]
+  _legacyRecords: unknown[],
+  db?: AiFlowDatabase
 ): Promise<void> {
-  const conversations = `${records.map((record) => JSON.stringify(record)).join("\n")}\n`;
-  const patterns = `${records
-    .flatMap((record) => record.reusablePatterns)
-    .map((pattern) => JSON.stringify({ pattern }))
-    .join("\n")}\n`;
+  const ownDb = db ?? openDatabase(config);
+  const shouldClose = !db;
 
-  await Promise.all([
-    writeTextFile(`${config.paths.datasetDir}/conversations.ndjson`, conversations),
-    writeTextFile(`${config.paths.datasetDir}/patterns.ndjson`, patterns)
-  ]);
+  try {
+    const records = ownDb.allRecords();
+    const conversations = records.map((r) => JSON.stringify(r)).join("\n") + "\n";
+    const patterns =
+      records
+        .flatMap((r) => r.reusablePatterns)
+        .map((p) => JSON.stringify({ pattern: p }))
+        .join("\n") + "\n";
+
+    await Promise.all([
+      writeTextFile(`${config.paths.datasetDir}/conversations.ndjson`, conversations),
+      writeTextFile(`${config.paths.datasetDir}/patterns.ndjson`, patterns)
+    ]);
+  } finally {
+    if (shouldClose) ownDb.close();
+  }
 }

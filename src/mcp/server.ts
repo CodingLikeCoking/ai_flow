@@ -4,11 +4,13 @@ import packageJson from "../../package.json" with { type: "json" };
 
 import { loadAiFlowConfig } from "../core/config/loadConfig.js";
 import type { AiFlowConfig } from "../core/types.js";
+import { AiFlowDatabase, openDatabase } from "../core/db/database.js";
 import { registerAiFlowResources } from "./registerResources.js";
 import { registerAiFlowTools } from "./registerTools.js";
 
 export interface AiFlowMcpContext {
   config: AiFlowConfig;
+  db: AiFlowDatabase;
 }
 
 export async function createAiFlowMcpServer(config?: AiFlowConfig): Promise<{
@@ -18,7 +20,8 @@ export async function createAiFlowMcpServer(config?: AiFlowConfig): Promise<{
   resourceNames: string[];
 }> {
   const resolvedConfig = config ?? (await loadAiFlowConfig());
-  const context: AiFlowMcpContext = { config: resolvedConfig };
+  const db = openDatabase(resolvedConfig);
+  const context: AiFlowMcpContext = { config: resolvedConfig, db };
   const server = new McpServer({
     name: "ai-flow-mcp-server",
     version: packageJson.version

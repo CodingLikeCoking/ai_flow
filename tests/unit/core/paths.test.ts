@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  getGlobalProjectPaths,
   getProjectPaths,
   slugifyProjectName
 } from "../../../src/core/fs/paths.js";
@@ -21,15 +20,6 @@ describe("path helpers", () => {
     );
     expect(paths.taskPlanDocumentFile("demo-task")).toBe(
       "/tmp/My Project/prompt/demo-task/plan.md"
-    );
-  });
-
-  it("builds canonical Desktop global mirror paths", () => {
-    const paths = getGlobalProjectPaths("my-project");
-
-    expect(paths.projectDir.endsWith("/Desktop/prompt_global/my-project")).toBe(true);
-    expect(paths.projectStatusFile.endsWith("/Desktop/prompt_global/my-project/project-status.md")).toBe(
-      true
     );
   });
 

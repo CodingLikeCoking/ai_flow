@@ -1,10 +1,7 @@
-import { readFile } from "node:fs/promises";
-
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { getProjectPaths } from "../../core/fs/paths.js";
-import { readProjectRegistryEntry } from "../../core/registry/projectRegistry.js";
+import { rebuildProjectStatus } from "../../core/actions/rebuildStatus.js";
 import type { AiFlowMcpContext } from "../server.js";
 
 export function registerGetProjectStatusTool(
@@ -17,7 +14,7 @@ export function registerGetProjectStatusTool(
     name,
     {
       title: "Get Project Status",
-      description: "Read the current status markdown for a project.",
+      description: "Read the current status for a project, computed from stored records.",
       inputSchema: {
         project_slug: z.string().min(1),
         response_format: z.enum(["markdown", "json"]).default("markdown"),
@@ -32,14 +29,27 @@ export function registerGetProjectStatusTool(
       }
     },
     async ({ project_slug, response_format }) => {
-      const entry = await readProjectRegistryEntry(context.config, project_slug);
-      const text = entry
-        ? await readFile(getProjectPaths(entry.projectPath, entry.projectSlug).projectStatusFile, "utf8")
-        : "# Missing project\n";
-      const output = { project_slug, found: Boolean(entry), text };
+      const project = context.db.getProject(project_slug);
+      if (!project) {
+        const output = { project_slug, found: false, text: "# Missing project\n" };
+        return {
+          content: [{ type: "text", text: response_format === "json" ? JSON.stringify(output, null, 2) : output.text }],
+          structuredContent: output
+        };
+      }
 
+      const view = await rebuildProjectStatus(
+        context.config,
+        project.projectName,
+        project.projectPath,
+        project.projectSlug,
+        [],
+        context.db
+      );
+
+      const output = { project_slug, found: true, text: view.statusMarkdown };
       return {
-        content: [{ type: "text", text: response_format === "json" ? JSON.stringify(output, null, 2) : text }],
+        content: [{ type: "text", text: response_format === "json" ? JSON.stringify(output, null, 2) : view.statusMarkdown }],
         structuredContent: output
       };
     }

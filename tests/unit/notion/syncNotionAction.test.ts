@@ -7,33 +7,43 @@ import { describe, expect, it } from "vitest";
 import { loadAiFlowConfig } from "../../../src/core/config/loadConfig.js";
 import { syncNotionRecords } from "../../../src/core/actions/syncNotion.js";
 import type { NormalizedRecord } from "../../../src/core/types.js";
-import { writeTextFile } from "../../../src/core/fs/fileIO.js";
+import { AiFlowDatabase } from "../../../src/core/db/database.js";
 
 describe("sync notion action", () => {
-  it("loads records from the dataset when no records are passed", async () => {
+  it("loads records from the database when no records are passed", async () => {
     const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-sync-action-"));
     const config = await loadAiFlowConfig({ homeDir });
     const record = buildRecord();
+    const db = new AiFlowDatabase(":memory:");
     let syncedRecords: NormalizedRecord[] = [];
 
-    await writeTextFile(
-      join(config.paths.datasetDir, "conversations.ndjson"),
-      `${JSON.stringify(record)}\n`
-    );
-
-    const result = await syncNotionRecords(config, [], {
-      syncer: async (_config, records) => {
-        syncedRecords = records;
-        return {
-          syncedCount: records.length,
-          warnings: []
-        };
-      }
+    db.upsertProject({
+      projectSlug: "project",
+      projectName: "Project",
+      projectPath: "/tmp/project",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     });
+    db.upsertRecord(record);
 
-    expect(result.syncedCount).toBe(1);
-    expect(syncedRecords).toHaveLength(1);
-    expect(syncedRecords[0]?.recordId).toBe(record.recordId);
+    try {
+      const result = await syncNotionRecords(config, [], {
+        db,
+        syncer: async (_config, records) => {
+          syncedRecords = records;
+          return {
+            syncedCount: records.length,
+            warnings: []
+          };
+        }
+      });
+
+      expect(result.syncedCount).toBe(1);
+      expect(syncedRecords).toHaveLength(1);
+      expect(syncedRecords[0]?.recordId).toBe(record.recordId);
+    } finally {
+      db.close();
+    }
   });
 });
 

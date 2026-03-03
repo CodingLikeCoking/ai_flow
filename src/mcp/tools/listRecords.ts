@@ -1,10 +1,6 @@
-import { readFile } from "node:fs/promises";
-
-import fg from "fast-glob";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
-import { readProjectRegistryEntry } from "../../core/registry/projectRegistry.js";
 import type { AiFlowMcpContext } from "../server.js";
 
 export function registerListRecordsTool(
@@ -17,7 +13,7 @@ export function registerListRecordsTool(
     name,
     {
       title: "List Records",
-      description: "List prompt and plan markdown files for a project.",
+      description: "List prompt and plan records for a project.",
       inputSchema: {
         project_slug: z.string().min(1),
         response_format: z.enum(["markdown", "json"]).default("markdown"),
@@ -32,22 +28,17 @@ export function registerListRecordsTool(
       }
     },
     async ({ project_slug, response_format, limit, offset }) => {
-      const entry = await readProjectRegistryEntry(context.config, project_slug);
-      const files = entry
-        ? await fg("**/*.md", {
-            cwd: `${entry.projectPath}/prompt`,
-            absolute: true,
-            suppressErrors: true
-          })
-        : [];
-      const sliced = files.slice(offset, offset + limit);
-      const items = await Promise.all(
-        sliced.map(async (file) => ({
-          file,
-          preview: (await readFile(file, "utf8")).split("\n").slice(0, 3).join("\n")
-        }))
-      );
-      const output = { total: files.length, count: items.length, offset, items };
+      const { total, items } = context.db.listRecords(project_slug, {}, limit, offset);
+      const summaries = items.map((r) => ({
+        record_id: r.recordId,
+        task_slug: r.taskSlug,
+        kind: r.kind,
+        agent: r.agent,
+        ended_at: r.endedAt,
+        status: r.status,
+        preview: r.summary.slice(0, 200)
+      }));
+      const output = { total, count: summaries.length, offset, items: summaries };
 
       return {
         content: [
@@ -56,7 +47,9 @@ export function registerListRecordsTool(
             text:
               response_format === "json"
                 ? JSON.stringify(output, null, 2)
-                : `# Records\n\n${items.map((item) => `- ${item.file}`).join("\n")}\n`
+                : `# Records (${total} total)\n\n${summaries
+                    .map((s) => `- [${s.kind}] ${s.task_slug} (${s.agent}, ${s.ended_at})`)
+                    .join("\n")}\n`
           }
         ],
         structuredContent: output

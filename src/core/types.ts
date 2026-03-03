@@ -31,7 +31,6 @@ export interface AiFlowConfig {
     homeDir: string;
     desktopDir: string;
     aiFlowHome: string;
-    promptGlobalDir: string;
     configFile: string;
     projectsDir: string;
     stateDir: string;

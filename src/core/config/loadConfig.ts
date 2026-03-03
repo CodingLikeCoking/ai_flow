@@ -13,7 +13,6 @@ const configSchema = z.object({
     homeDir: z.string().min(1),
     desktopDir: z.string().min(1),
     aiFlowHome: z.string().min(1),
-    promptGlobalDir: z.string().min(1),
     configFile: z.string().min(1),
     projectsDir: z.string().min(1),
     stateDir: z.string().min(1),

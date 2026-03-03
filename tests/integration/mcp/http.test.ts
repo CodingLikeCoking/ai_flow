@@ -7,23 +7,25 @@ import { createHttpServer } from "../../../src/http/createHttpServer.js";
 import { createAiFlowMcpServer } from "../../../src/mcp/server.js";
 
 describe("mcp http transport", () => {
-  const servers: Array<{ close: () => void }> = [];
+  const cleanups: Array<() => void> = [];
 
   afterEach(() => {
-    for (const server of servers) {
-      server.close();
+    for (const fn of cleanups) {
+      fn();
     }
+    cleanups.length = 0;
   });
 
   it("rejects invalid origin headers", async () => {
     const config = await loadAiFlowConfig();
     const bundle = await createAiFlowMcpServer(config);
+    cleanups.push(() => bundle.context.db.close());
     const server = await createHttpServer({
       server: bundle.server,
       host: "127.0.0.1",
       port: 0
     });
-    servers.push(server);
+    cleanups.push(() => server.close());
     const address = server.address() as AddressInfo;
 
     const response = await fetch(`http://127.0.0.1:${address.port}/mcp`, {
@@ -41,13 +43,14 @@ describe("mcp http transport", () => {
   it("rejects requests without the expected bearer token", async () => {
     const config = await loadAiFlowConfig();
     const bundle = await createAiFlowMcpServer(config);
+    cleanups.push(() => bundle.context.db.close());
     const server = await createHttpServer({
       server: bundle.server,
       host: "127.0.0.1",
       port: 0,
       token: "secret-token"
     });
-    servers.push(server);
+    cleanups.push(() => server.close());
     const address = server.address() as AddressInfo;
 
     const response = await fetch(`http://127.0.0.1:${address.port}/mcp`, {

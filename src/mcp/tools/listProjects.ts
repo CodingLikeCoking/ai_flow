@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-
-import fg from "fast-glob";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
@@ -30,17 +27,8 @@ export function registerListProjectsTool(
       }
     },
     async ({ response_format, limit, offset }) => {
-      const files = await fg("*.json", {
-        cwd: context.config.paths.projectsDir,
-        absolute: true,
-        suppressErrors: true
-      });
-      const entries = await Promise.all(
-        files.slice(offset, offset + limit).map(async (file) =>
-          JSON.parse(await readFile(file, "utf8"))
-        )
-      );
-      const output = { total: files.length, count: entries.length, offset, items: entries };
+      const { total, items } = context.db.listProjects(limit, offset);
+      const output = { total, count: items.length, offset, items };
 
       return {
         content: [
@@ -49,8 +37,8 @@ export function registerListProjectsTool(
             text:
               response_format === "json"
                 ? JSON.stringify(output, null, 2)
-                : `# Projects\n\n${entries
-                    .map((entry: any) => `- ${entry.projectSlug} (${entry.projectPath})`)
+                : `# Projects\n\n${items
+                    .map((e) => `- ${e.projectSlug} (${e.projectPath})`)
                     .join("\n")}\n`
           }
         ],

@@ -3,8 +3,7 @@ import { join } from "node:path";
 import {
   AI_FLOW_HOME_DIRNAME,
   DEFAULT_DESKTOP_DIR,
-  DEFAULT_HOME_DIR,
-  PROMPT_GLOBAL_DIRNAME
+  DEFAULT_HOME_DIR
 } from "../constants.js";
 
 function padSequence(sequence: number): string {
@@ -30,7 +29,6 @@ export function getAiFlowRootPaths(
     homeDir,
     desktopDir,
     aiFlowHome,
-    promptGlobalDir: join(desktopDir, PROMPT_GLOBAL_DIRNAME),
     configFile: join(aiFlowHome, "config.json"),
     projectsDir: join(aiFlowHome, "projects"),
     stateDir: join(aiFlowHome, "state"),
@@ -72,17 +70,3 @@ export function getProjectPaths(projectRoot: string, projectSlug: string) {
   };
 }
 
-export function getGlobalProjectPaths(
-  projectSlug: string,
-  desktopDir = DEFAULT_DESKTOP_DIR
-) {
-  const projectDir = join(desktopDir, PROMPT_GLOBAL_DIRNAME, projectSlug);
-
-  return {
-    projectDir,
-    indexFile: join(projectDir, "index.md"),
-    projectStatusFile: join(projectDir, "project-status.md"),
-    timelineFile: join(projectDir, "timeline.md"),
-    projectMapFile: join(projectDir, "project-map.json")
-  };
-}

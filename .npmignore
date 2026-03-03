@@ -1,0 +1,7 @@
+prompt/
+*.db
+*.db-wal
+*.db-shm
+tests/
+coverage/
+.env

@@ -12,6 +12,7 @@ describe("CLI smoke tests", () => {
       "init",
       "scan",
       "doctor",
+      "migrate",
       "sync",
       "rebuild-status",
       "export",

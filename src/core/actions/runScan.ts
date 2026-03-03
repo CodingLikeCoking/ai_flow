@@ -1,8 +1,3 @@
-import { readFile, rm } from "node:fs/promises";
-import { basename } from "node:path";
-
-import fg from "fast-glob";
-
 import type {
   AdapterEvent,
   AiFlowConfig,
@@ -17,28 +12,32 @@ import { deriveTaskSlug } from "../analysis/taskSlug.js";
 import { assessTaskBoundary } from "../analysis/taskBoundary.js";
 import { detectReusablePatterns } from "../analysis/patternDetector.js";
 import { buildOnePromptNextTime } from "../analysis/onePromptNextTime.js";
-import { getProjectPaths, slugifyProjectName } from "../fs/paths.js";
-import { readProjectRegistryEntry } from "../registry/projectRegistry.js";
-import { renderPlanMarkdown } from "../renderers/planRenderer.js";
-import { renderPromptMarkdown } from "../renderers/promptRenderer.js";
-import { renderSetupGuideMarkdown } from "../renderers/setupGuideRenderer.js";
-import { fileExists, readJsonFile, writeTextFile } from "../fs/fileIO.js";
-import { appendSuggestionsToMarkdown } from "../suggestions/suggestionQueue.js";
-import { exportDataset } from "./exportDataset.js";
-import { rebuildProjectStatus } from "./rebuildStatus.js";
-import { writeGlobalProjectMirror } from "../mirror/globalMirror.js";
-import { initProject } from "./initProject.js";
+import { slugifyProjectName } from "../fs/paths.js";
 import { runBuildVsBuyResearch } from "../research/buildVsBuy.js";
 import { syncRecordsToNotion } from "../notion/syncService.js";
+import { AiFlowDatabase, openDatabase } from "../db/database.js";
 
 export interface RunScanOptions {
   config: AiFlowConfig;
   events?: AdapterEvent[];
+  db?: AiFlowDatabase;
 }
 
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
-  await migrateLegacyPlanFiles(options.config);
+  const db = options.db ?? openDatabase(options.config);
+  const shouldCloseDb = !options.db;
 
+  try {
+    return await runScanWithDb(db, options);
+  } finally {
+    if (shouldCloseDb) db.close();
+  }
+}
+
+async function runScanWithDb(
+  db: AiFlowDatabase,
+  options: RunScanOptions
+): Promise<ScanResult> {
   const events = options.events ?? (await collectAllAdapterEvents(options.config));
   const grouped = groupEvents(events);
   const writtenRecords: NormalizedRecord[] = [];
@@ -51,63 +50,27 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
       continue;
     }
 
-    const projectEntry = await ensureProjectRegistration(options.config, group.projectPath);
+    const projectEntry = ensureProjectRegistration(db, group.projectPath);
     const record = buildNormalizedRecord(group.events, projectEntry);
-    writtenRecords.push(record);
-
-    const projectPaths = getProjectPaths(projectEntry.projectPath, projectEntry.projectSlug);
-    const sequence =
-      record.kind === "PLAN"
-        ? null
-        : await nextSequence("prompt-*.md", projectPaths.taskDir(record.taskSlug));
-    const fileName =
-      record.kind === "PLAN"
-        ? "plan.md"
-        : `prompt-${String(sequence).padStart(3, "0")}.md`;
-    const targetFile =
-      record.kind === "PLAN"
-        ? projectPaths.taskPlanDocumentFile(record.taskSlug)
-        : projectPaths.taskPromptFile(record.taskSlug, sequence ?? 1);
-    const rendered =
-      record.kind === "PLAN" ? renderPlanMarkdown(record) : renderPromptMarkdown(record);
-
-    await writeTextFile(targetFile, rendered);
 
     const detected = detectReusablePatterns(record);
     if (detected.length > 0) {
       record.reusablePatterns.push(...detected.map((item) => item.summary));
-      await appendSuggestionsToMarkdown(projectPaths.skillBacklogFile, detected);
       suggestionsApplied += detected.filter((item) => item.confidence >= 0.9).length;
     }
 
-    await rebuildProjectStatus(
-      options.config,
-      projectEntry.projectName,
-      projectEntry.projectPath,
-      projectEntry.projectSlug,
-      [record]
-    );
+    db.upsertRecord(record);
+    writtenRecords.push(record);
 
     const notionResult = await syncRecordsToNotion(options.config, [record]);
     warnings.push(...notionResult.warnings);
-    if (notionResult.setupGuide) {
-      await writeTextFile(
-        projectPaths.setupGuideFile(record.taskSlug, "notion"),
-        renderSetupGuideMarkdown(notionResult.setupGuide)
-      );
+    if (notionResult.syncedCount > 0) {
+      const notionPageId = record.notionPageId;
+      if (notionPageId) {
+        db.updateNotionPageId(record.recordId, notionPageId);
+      }
     }
-
-    await writeGlobalProjectMirror(options.config, projectEntry.projectSlug, projectEntry.projectName, {
-      projectStatus: renderPromptMarkdown({
-        ...record,
-        kind: "STATUS"
-      }),
-      timeline: `# Timeline\n\n- ${record.startedAt}: ${record.taskSlug}\n`,
-      records: [{ fileName: `${record.taskSlug}-${fileName}`, contents: rendered }]
-    });
   }
-
-  await exportDataset(options.config, writtenRecords);
 
   return {
     scannedAt: new Date().toISOString(),
@@ -116,60 +79,6 @@ export async function runScan(options: RunScanOptions): Promise<ScanResult> {
     suggestionsApplied,
     warnings
   };
-}
-
-async function migrateLegacyPlanFiles(config: AiFlowConfig): Promise<void> {
-  const registryFiles = await fg("*.json", {
-    cwd: config.paths.projectsDir,
-    absolute: true,
-    onlyFiles: true,
-    suppressErrors: true
-  });
-
-  for (const registryFile of registryFiles) {
-    const entry = await readJsonFile<ProjectRegistryEntry>(registryFile);
-    if (!entry) {
-      continue;
-    }
-
-    const projectPaths = getProjectPaths(entry.projectPath, entry.projectSlug);
-    const taskDirs = await fg("*", {
-      cwd: projectPaths.promptDir,
-      absolute: true,
-      onlyDirectories: true,
-      suppressErrors: true
-    });
-
-    for (const taskDir of taskDirs) {
-      const taskSlug = basename(taskDir);
-      if (taskSlug === "_project") {
-        continue;
-      }
-
-      const legacyPlanFiles = (await fg("plan-*.md", {
-        cwd: taskDir,
-        absolute: true,
-        onlyFiles: true,
-        suppressErrors: true
-      })).sort();
-
-      if (legacyPlanFiles.length === 0) {
-        continue;
-      }
-
-      const stablePlanPath = projectPaths.taskPlanDocumentFile(taskSlug);
-
-      if (!(await fileExists(stablePlanPath))) {
-        const latestLegacyPath = legacyPlanFiles.at(-1);
-        if (latestLegacyPath) {
-          const latestContents = await readFile(latestLegacyPath, "utf8");
-          await writeTextFile(stablePlanPath, latestContents);
-        }
-      }
-
-      await Promise.all(legacyPlanFiles.map((path) => rm(path, { force: true })));
-    }
-  }
 }
 
 function groupEvents(events: AdapterEvent[]): Array<{ key: string; projectPath: string | null; events: AdapterEvent[] }> {
@@ -193,25 +102,27 @@ function groupEvents(events: AdapterEvent[]): Array<{ key: string; projectPath: 
   return [...grouped.values()].sort((left, right) => left.key.localeCompare(right.key));
 }
 
-async function ensureProjectRegistration(
-  config: AiFlowConfig,
+function ensureProjectRegistration(
+  db: AiFlowDatabase,
   projectPath: string
-): Promise<ProjectRegistryEntry> {
-  const projectName = basename(projectPath) || "Unknown Project";
+): ProjectRegistryEntry {
+  const projectName = projectPath.split("/").pop() || "Unknown Project";
   const projectSlug = slugifyProjectName(projectName);
-  const existing = await readProjectRegistryEntry(config, projectSlug);
+  const existing = db.getProject(projectSlug);
 
-  if (existing) {
-    return existing;
-  }
+  if (existing) return existing;
 
-  const result = await initProject({
-    config,
+  const now = new Date().toISOString();
+  const entry: ProjectRegistryEntry = {
+    projectSlug,
+    projectName,
     projectPath,
-    projectName
-  });
+    createdAt: now,
+    updatedAt: now
+  };
 
-  return result.entry;
+  db.upsertProject(entry);
+  return entry;
 }
 
 function getFallbackProjectPath(): string | null {
@@ -305,9 +216,4 @@ function buildNextDirections(
     directions.push("Review existing tools before building another new utility.");
   }
   return directions;
-}
-
-async function nextSequence(pattern: string, cwd: string): Promise<number> {
-  const matches = await fg(pattern, { cwd, onlyFiles: true, suppressErrors: true });
-  return matches.length + 1;
 }

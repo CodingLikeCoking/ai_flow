@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,156 +6,109 @@ import { describe, expect, it } from "vitest";
 
 import { loadAiFlowConfig } from "../../../src/core/config/loadConfig.js";
 import { runScan } from "../../../src/core/actions/runScan.js";
-import { initProject } from "../../../src/core/actions/initProject.js";
-import { writeTextFile } from "../../../src/core/fs/fileIO.js";
+import { AiFlowDatabase } from "../../../src/core/db/database.js";
 
-describe("runScan filesystem writes", () => {
-  it("writes local prompt files, desktop mirror files, and dataset exports", async () => {
+describe("runScan database writes", () => {
+  it("writes records to the database instead of the filesystem", async () => {
     await withNotionDisabled(async () => {
       const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-scan-"));
       const projectPath = join(sandbox, "Demo Project");
       const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+      const db = new AiFlowDatabase(":memory:");
 
-      const result = await runScan({
-        config,
-        events: [
-          {
-            agent: "codex",
-            sessionId: "scan-1",
-            projectPath,
-            sourcePath: join(sandbox, "source.jsonl"),
-            timestamp: "2026-03-02T10:00:00.000Z",
-            role: "user",
-            text: "Build a passive logger"
-          },
-          {
-            agent: "codex",
-            sessionId: "scan-1",
-            projectPath,
-            sourcePath: join(sandbox, "source.jsonl"),
-            timestamp: "2026-03-02T10:00:01.000Z",
-            role: "assistant",
-            text: "Implemented the logger. Tests passed and the task is completed."
-          }
-        ]
-      });
+      try {
+        const result = await runScan({
+          config,
+          db,
+          events: [
+            {
+              agent: "codex",
+              sessionId: "scan-1",
+              projectPath,
+              sourcePath: join(sandbox, "source.jsonl"),
+              timestamp: "2026-03-02T10:00:00.000Z",
+              role: "user",
+              text: "Build a passive logger"
+            },
+            {
+              agent: "codex",
+              sessionId: "scan-1",
+              projectPath,
+              sourcePath: join(sandbox, "source.jsonl"),
+              timestamp: "2026-03-02T10:00:01.000Z",
+              role: "assistant",
+              text: "Implemented the logger. Tests passed and the task is completed."
+            }
+          ]
+        });
 
-      const promptPath = join(
-        projectPath,
-        "prompt",
-        "build-a-passive-logger",
-        "prompt-001.md"
-      );
-      const mirrorPath = join(
-        sandbox,
-        "prompt_global",
-        "demo-project",
-        "records",
-        "build-a-passive-logger-prompt-001.md"
-      );
-      const datasetPath = join(sandbox, ".ai-flow", "dataset", "conversations.ndjson");
+        expect(result.recordsCreated).toBe(1);
 
-      expect(result.recordsCreated).toBe(1);
-      expect(readFileSync(promptPath, "utf8")).toContain("[AGENT]");
-      expect(readFileSync(mirrorPath, "utf8")).toContain("[AGENT]");
-      expect(readFileSync(datasetPath, "utf8")).toContain("\"taskSlug\":\"build-a-passive-logger\"");
+        const records = db.allRecords("demo-project");
+        expect(records).toHaveLength(1);
+        expect(records[0].taskSlug).toBe("build-a-passive-logger");
+        expect(records[0].userText).toContain("Build a passive logger");
+        expect(records[0].assistantText).toContain("Implemented the logger");
+      } finally {
+        db.close();
+      }
     });
   }, 15_000);
 
-  it("keeps a single plan markdown file per task and overwrites it on later scans", async () => {
+  it("upserts plan records idempotently on repeated scans", async () => {
     await withNotionDisabled(async () => {
       const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-plan-"));
       const projectPath = join(sandbox, "Demo Project");
       const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+      const db = new AiFlowDatabase(":memory:");
 
-      const initialEvents = [
-        {
-          agent: "codex" as const,
-          sessionId: "plan-1",
-          projectPath,
-          sourcePath: join(sandbox, "source.jsonl"),
-          timestamp: "2026-03-03T10:00:00.000Z",
-          role: "user" as const,
-          text: "Plan the rollout"
-        },
-        {
-          agent: "codex" as const,
-          sessionId: "plan-1",
-          projectPath,
-          sourcePath: join(sandbox, "source.jsonl"),
-          timestamp: "2026-03-03T10:00:01.000Z",
-          role: "assistant" as const,
-          text: "What should be included?"
-        },
-        {
-          agent: "codex" as const,
-          sessionId: "plan-1",
-          projectPath,
-          sourcePath: join(sandbox, "source.jsonl"),
-          timestamp: "2026-03-03T10:00:02.000Z",
-          role: "user" as const,
-          text: "Include launch, docs, and rollback."
-        },
-        {
-          agent: "codex" as const,
-          sessionId: "plan-1",
-          projectPath,
-          sourcePath: join(sandbox, "source.jsonl"),
-          timestamp: "2026-03-03T10:00:03.000Z",
-          role: "assistant" as const,
-          text: "<proposed_plan>\nDraft plan"
-        }
-      ];
-
-      await runScan({ config, events: initialEvents });
-      await runScan({
-        config,
-        events: [
-          ...initialEvents,
+      try {
+        const initialEvents = [
           {
-            agent: "codex",
+            agent: "codex" as const,
             sessionId: "plan-1",
             projectPath,
             sourcePath: join(sandbox, "source.jsonl"),
-            timestamp: "2026-03-03T10:00:04.000Z",
-            role: "assistant",
-            text: "<proposed_plan>\nFinal plan"
+            timestamp: "2026-03-03T10:00:00.000Z",
+            role: "user" as const,
+            text: "Plan the rollout"
+          },
+          {
+            agent: "codex" as const,
+            sessionId: "plan-1",
+            projectPath,
+            sourcePath: join(sandbox, "source.jsonl"),
+            timestamp: "2026-03-03T10:00:01.000Z",
+            role: "assistant" as const,
+            text: "<proposed_plan>\nDraft plan"
           }
-        ]
-      });
+        ];
 
-      const taskDir = join(projectPath, "prompt", "plan-the-rollout");
-      const planFiles = readdirSync(taskDir).filter((name) => name.startsWith("plan"));
-      const planPath = join(taskDir, "plan.md");
+        await runScan({ config, db, events: initialEvents });
+        await runScan({
+          config,
+          db,
+          events: [
+            ...initialEvents,
+            {
+              agent: "codex",
+              sessionId: "plan-1",
+              projectPath,
+              sourcePath: join(sandbox, "source.jsonl"),
+              timestamp: "2026-03-03T10:00:04.000Z",
+              role: "assistant",
+              text: "<proposed_plan>\nFinal plan"
+            }
+          ]
+        });
 
-      expect(planFiles).toEqual(["plan.md"]);
-      expect(readFileSync(planPath, "utf8")).toContain("Include launch, docs, and rollback.");
-      expect(readFileSync(planPath, "utf8")).toContain("Final plan");
-    });
-  }, 15_000);
-
-  it("migrates legacy numbered plan files into a single stable plan.md and removes duplicates", async () => {
-    await withNotionDisabled(async () => {
-      const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-legacy-plan-"));
-      const projectPath = join(sandbox, "Demo Project");
-      const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
-
-      await initProject({
-        config,
-        projectPath,
-        projectName: "Demo Project"
-      });
-
-      const taskDir = join(projectPath, "prompt", "legacy-plan-task");
-      await writeTextFile(join(taskDir, "plan-001.md"), "# [PLAN] Plan\n\nOld plan\n");
-      await writeTextFile(join(taskDir, "plan-002.md"), "# [PLAN] Plan\n\nLatest legacy plan\n");
-
-      const result = await runScan({ config, events: [] });
-      const planFiles = readdirSync(taskDir).filter((name) => name.startsWith("plan"));
-
-      expect(result.recordsCreated).toBe(0);
-      expect(planFiles).toEqual(["plan.md"]);
-      expect(readFileSync(join(taskDir, "plan.md"), "utf8")).toContain("Latest legacy plan");
+        const records = db.allRecords("demo-project");
+        expect(records).toHaveLength(1);
+        expect(records[0].kind).toBe("PLAN");
+        expect(records[0].assistantText).toContain("Final plan");
+      } finally {
+        db.close();
+      }
     });
   }, 15_000);
 });

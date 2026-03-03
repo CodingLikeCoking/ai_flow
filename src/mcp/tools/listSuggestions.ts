@@ -4,7 +4,6 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 
 import { getProjectPaths } from "../../core/fs/paths.js";
-import { readProjectRegistryEntry } from "../../core/registry/projectRegistry.js";
 import type { AiFlowMcpContext } from "../server.js";
 
 export function registerListSuggestionsTool(
@@ -32,7 +31,7 @@ export function registerListSuggestionsTool(
       }
     },
     async ({ project_slug, response_format }) => {
-      const entry = await readProjectRegistryEntry(context.config, project_slug);
+      const entry = context.db.getProject(project_slug);
       if (!entry) {
         const output = { project_slug, items: [] as string[] };
         return {
