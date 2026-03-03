@@ -8,5 +8,8 @@ export function getNotionClient(config: AiFlowConfig): Client | null {
     return null;
   }
 
-  return new Client({ auth: token });
+  return new Client({
+    auth: token,
+    timeoutMs: 10_000
+  });
 }

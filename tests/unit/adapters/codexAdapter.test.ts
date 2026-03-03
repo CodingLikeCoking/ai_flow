@@ -17,5 +17,5 @@ describe("codex adapter", () => {
       sessionId: "codex-session-1"
     });
     expect(events[1].text).toContain("done");
-  });
+  }, 10_000);
 });

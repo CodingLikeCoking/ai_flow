@@ -56,7 +56,9 @@ export function buildAiFlowProgram(): Command {
       const entry = options.project
         ? await readProjectRegistryEntry(config, options.project)
         : null;
-      const result = await syncNotionRecords(config, []);
+      const result = await syncNotionRecords(config, [], {
+        projectSlug: entry?.projectSlug
+      });
       process.stdout.write(
         `${JSON.stringify({ project: entry?.projectSlug ?? null, ...result }, null, 2)}\n`
       );
