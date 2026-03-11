@@ -7,6 +7,14 @@ import { fileExists, readJsonFile, writeJsonFile } from "../fs/fileIO.js";
 import type { AiFlowConfig } from "../types.js";
 import { buildDefaultConfig, type ConfigPathOverrides } from "./defaults.js";
 
+type DeepPartial<T> = {
+  [K in keyof T]?: T[K] extends Array<infer U>
+    ? U[]
+    : T[K] extends object
+      ? DeepPartial<T[K]>
+      : T[K];
+};
+
 const configSchema = z.object({
   scanIntervalSeconds: z.number().int().min(1),
   paths: z.object({
@@ -31,11 +39,41 @@ const configSchema = z.object({
     enabled: z.boolean(),
     tokenEnvVar: z.string().min(1),
     databaseIdEnvVar: z.string().min(1)
+  }),
+  ux: z.object({
+    targetAudience: z.enum(["non_technical", "technical"]),
+    guidedMode: z.boolean(),
+    plainLanguageStatus: z.boolean()
+  }),
+  workflow: z.object({
+    searchBeforeBuild: z.boolean(),
+    planRequiredThreshold: z.enum(["non_trivial", "always"]),
+    providerRules: z.object({
+      openai: z.array(z.string().min(1)),
+      anthropic: z.array(z.string().min(1)),
+      deepseek: z.array(z.string().min(1))
+    }),
+    repeatedPromptRules: z.array(z.string().min(1))
+  }),
+  performance: z.object({
+    streamingIngestion: z.boolean(),
+    maxBytesPerScanPass: z.number().int().min(1024),
+    notionBatchSize: z.number().int().min(1)
+  }),
+  release: z.object({
+    enabled: z.boolean(),
+    autoCommit: z.boolean(),
+    autoPush: z.boolean(),
+    refreshLocalApp: z.boolean(),
+    gitRemote: z.string().min(1),
+    commitMessageTemplate: z.string().min(1),
+    preflightCommands: z.array(z.string().min(1)),
+    refreshCommand: z.string().min(1)
   })
 });
 
 export interface LoadConfigOptions extends ConfigPathOverrides {
-  rawConfig?: Partial<AiFlowConfig>;
+  rawConfig?: DeepPartial<AiFlowConfig>;
 }
 
 export async function loadAiFlowConfig(
@@ -58,6 +96,11 @@ export async function loadAiFlowConfig(
   const stored = await readJsonFile<AiFlowConfig>(defaults.paths.configFile);
   const merged = deepMerge(defaults, stored ?? {});
   return configSchema.parse(merged);
+}
+
+export async function saveAiFlowConfig(config: AiFlowConfig): Promise<void> {
+  const parsed = configSchema.parse(config);
+  await writeJsonFile(parsed.paths.configFile, parsed);
 }
 
 async function loadRuntimeEnv(homeDirOverride?: string): Promise<void> {
@@ -120,7 +163,7 @@ function applyDotEnv(contents: string): void {
   }
 }
 
-function deepMerge<T>(base: T, patch: Partial<T>): T {
+function deepMerge<T>(base: T, patch: DeepPartial<T>): T {
   if (Array.isArray(base) || Array.isArray(patch)) {
     return (patch ?? base) as T;
   }

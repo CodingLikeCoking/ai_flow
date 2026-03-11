@@ -25,6 +25,10 @@ describe("config loader", () => {
     expect(config.scanIntervalSeconds).toBe(60);
     expect(config.mcp.http.host).toBe("127.0.0.1");
     expect(config.paths.aiFlowHome.startsWith(homeDir)).toBe(true);
+    expect(config.ux.targetAudience).toBe("non_technical");
+    expect(config.workflow.searchBeforeBuild).toBe(true);
+    expect(config.performance.streamingIngestion).toBe(true);
+    expect(config.release.autoPush).toBe(true);
   });
 
   it("rejects invalid config with an actionable message", async () => {
@@ -78,5 +82,37 @@ describe("config loader", () => {
       process.env.NOTION_DATABASE_ID = previous.NOTION_DATABASE_ID;
       process.env.AI_FLOW_MCP_TOKEN = previous.AI_FLOW_MCP_TOKEN;
     }
+  });
+
+  it("merges nested workflow and release config overrides", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-config-merge-"));
+    tempRoots.push(homeDir);
+
+    const config = await loadAiFlowConfig({
+      homeDir,
+      rawConfig: {
+        workflow: {
+          providerRules: {
+            openai: ["Be concise"],
+            anthropic: ["Use CLAUDE.md"],
+            deepseek: ["Prefer explicit output schemas"]
+          }
+        },
+        release: {
+          autoPush: false,
+          commitMessageTemplate: "chore: sync ai-flow defaults"
+        }
+      }
+    });
+
+    expect(config.workflow.providerRules.openai).toEqual(["Be concise"]);
+    expect(config.workflow.providerRules.deepseek).toEqual([
+      "Prefer explicit output schemas"
+    ]);
+    expect(config.release.enabled).toBe(true);
+    expect(config.release.autoPush).toBe(false);
+    expect(config.release.commitMessageTemplate).toBe(
+      "chore: sync ai-flow defaults"
+    );
   });
 });

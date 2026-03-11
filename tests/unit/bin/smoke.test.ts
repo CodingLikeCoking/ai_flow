@@ -10,6 +10,7 @@ describe("CLI smoke tests", () => {
 
     expect(names).toEqual([
       "init",
+      "setup",
       "scan",
       "doctor",
       "migrate",
@@ -18,6 +19,7 @@ describe("CLI smoke tests", () => {
       "export",
       "install",
       "print",
+      "release",
       "finalize"
     ]);
   });

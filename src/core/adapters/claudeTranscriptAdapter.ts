@@ -1,11 +1,15 @@
-import { readFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import readline from "node:readline";
 
 import fg from "fast-glob";
 
+import type { IngestionState } from "../state/stateStore.js";
 import type { AdapterEvent, AiFlowConfig } from "../types.js";
 
 interface ClaudeScanOptions {
   rootDir?: string;
+  state?: IngestionState;
 }
 
 export async function readClaudeTranscriptEvents(
@@ -17,12 +21,20 @@ export async function readClaudeTranscriptEvents(
   const events: AdapterEvent[] = [];
 
   for (const file of files) {
-    const contents = await safeReadText(file);
-    if (!contents) {
+    const fileStateKey = `claude:${file}`;
+    const previous = options.state?.files[fileStateKey];
+    const stats = await safeStat(file);
+    if (!stats) {
       continue;
     }
 
-    for (const line of contents.split("\n")) {
+    const shouldRestart = !previous || previous.size > stats.size || previous.mtimeMs > stats.mtimeMs;
+    const startOffset = shouldRestart ? 0 : previous.offset;
+    if (!shouldRestart && stats.size === previous.size) {
+      continue;
+    }
+
+    for await (const line of readJsonLines(file, startOffset)) {
       if (!line.trim()) {
         continue;
       }
@@ -36,6 +48,14 @@ export async function readClaudeTranscriptEvents(
       if (event) {
         events.push(event);
       }
+    }
+
+    if (options.state) {
+      options.state.files[fileStateKey] = {
+        offset: stats.size,
+        size: stats.size,
+        mtimeMs: stats.mtimeMs
+      };
     }
   }
 
@@ -90,11 +110,35 @@ function mapClaudeRecordToEvent(
   return null;
 }
 
-async function safeReadText(path: string): Promise<string | null> {
+async function safeStat(path: string): Promise<{ size: number; mtimeMs: number } | null> {
   try {
-    return await readFile(path, "utf8");
+    const value = await stat(path);
+    return {
+      size: value.size,
+      mtimeMs: value.mtimeMs
+    };
   } catch {
     return null;
+  }
+}
+
+async function* readJsonLines(path: string, start = 0): AsyncGenerator<string> {
+  const stream = createReadStream(path, {
+    encoding: "utf8",
+    start
+  });
+  const reader = readline.createInterface({
+    input: stream,
+    crlfDelay: Infinity
+  });
+
+  try {
+    for await (const line of reader) {
+      yield line;
+    }
+  } finally {
+    reader.close();
+    stream.destroy();
   }
 }
 

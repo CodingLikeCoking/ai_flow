@@ -42,4 +42,78 @@ describe("runScan", () => {
       db.close();
     }
   });
+
+  it("tracks updated records and persists Notion page ids returned by sync", async () => {
+    const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-runscan-notion-"));
+    const projectPath = join(sandbox, "Demo Project");
+    const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+    const db = new AiFlowDatabase(":memory:");
+    const events = [
+      {
+        agent: "codex" as const,
+        sessionId: "scan-1",
+        projectPath,
+        sourcePath: join(sandbox, "source.jsonl"),
+        timestamp: "2026-03-02T10:00:00.000Z",
+        role: "user" as const,
+        text: "Build a passive logger"
+      },
+      {
+        agent: "codex" as const,
+        sessionId: "scan-1",
+        projectPath,
+        sourcePath: join(sandbox, "source.jsonl"),
+        timestamp: "2026-03-02T10:00:01.000Z",
+        role: "assistant" as const,
+        text: "Implemented the logger."
+      }
+    ];
+
+    try {
+      const first = await runScan({
+        config,
+        db,
+        events,
+        syncNotion: async () => ({
+          syncedCount: 1,
+          warnings: [],
+          recordPageIds: {
+            "demo-project-codex-scan-1": "page-123"
+          }
+        })
+      });
+
+      const second = await runScan({
+        config,
+        db,
+        events: [
+          ...events,
+          {
+            agent: "codex",
+            sessionId: "scan-1",
+            projectPath,
+            sourcePath: join(sandbox, "source.jsonl"),
+            timestamp: "2026-03-02T10:00:02.000Z",
+            role: "assistant",
+            text: "Implemented the logger. Tests passed and the task is completed."
+          }
+        ],
+        syncNotion: async () => ({
+          syncedCount: 1,
+          warnings: [],
+          recordPageIds: {
+            "demo-project-codex-scan-1": "page-123"
+          }
+        })
+      });
+
+      expect(first.recordsCreated).toBe(1);
+      expect(first.recordsUpdated).toBe(0);
+      expect(second.recordsCreated).toBe(0);
+      expect(second.recordsUpdated).toBe(1);
+      expect(db.getRecord("demo-project-codex-scan-1")?.notionPageId).toBe("page-123");
+    } finally {
+      db.close();
+    }
+  });
 });

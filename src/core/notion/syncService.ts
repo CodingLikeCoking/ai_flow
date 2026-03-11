@@ -5,6 +5,7 @@ import { getNotionClient } from "./notionClient.js";
 export interface NotionSyncResult {
   syncedCount: number;
   warnings: string[];
+  recordPageIds?: Record<string, string>;
   setupGuide?: SetupGuide;
 }
 
@@ -64,6 +65,7 @@ export async function syncRecordsToNotion(
   let stateChanged = false;
   let syncedCount = 0;
   const warnings: string[] = [];
+  const recordPageIds: Record<string, string> = {};
 
   for (const record of records) {
     const pageId = state.recordToPageId[record.recordId] ?? record.notionPageId;
@@ -75,6 +77,7 @@ export async function syncRecordsToNotion(
           page_id: pageId,
           properties
         });
+        recordPageIds[record.recordId] = pageId;
       } else {
         const created = await client.pages.create({
           parent: { database_id: databaseId },
@@ -85,6 +88,7 @@ export async function syncRecordsToNotion(
         if (createdId) {
           state.recordToPageId[record.recordId] = createdId;
           stateChanged = true;
+          recordPageIds[record.recordId] = createdId;
         }
       }
       syncedCount += 1;
@@ -99,7 +103,8 @@ export async function syncRecordsToNotion(
 
   return {
     syncedCount,
-    warnings
+    warnings,
+    recordPageIds
   };
 }
 

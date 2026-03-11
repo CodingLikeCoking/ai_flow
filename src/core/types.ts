@@ -50,6 +50,36 @@ export interface AiFlowConfig {
     tokenEnvVar: string;
     databaseIdEnvVar: string;
   };
+  ux: {
+    targetAudience: "non_technical" | "technical";
+    guidedMode: boolean;
+    plainLanguageStatus: boolean;
+  };
+  workflow: {
+    searchBeforeBuild: boolean;
+    planRequiredThreshold: "non_trivial" | "always";
+    providerRules: {
+      openai: string[];
+      anthropic: string[];
+      deepseek: string[];
+    };
+    repeatedPromptRules: string[];
+  };
+  performance: {
+    streamingIngestion: boolean;
+    maxBytesPerScanPass: number;
+    notionBatchSize: number;
+  };
+  release: {
+    enabled: boolean;
+    autoCommit: boolean;
+    autoPush: boolean;
+    refreshLocalApp: boolean;
+    gitRemote: string;
+    commitMessageTemplate: string;
+    preflightCommands: string[];
+    refreshCommand: string;
+  };
 }
 
 export interface ProjectRegistryEntry {

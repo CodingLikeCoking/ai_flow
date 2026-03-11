@@ -79,6 +79,12 @@ describe("notion sync service", () => {
 
     expect(first.syncedCount).toBe(1);
     expect(second.syncedCount).toBe(1);
+    expect(first.recordPageIds).toEqual({
+      "project-codex-session-1": "page-123"
+    });
+    expect(second.recordPageIds).toEqual({
+      "project-codex-session-1": "page-123"
+    });
     expect(createdPayloads).toHaveLength(1);
     expect(updatedPayloads).toHaveLength(1);
     expect(JSON.stringify(createdPayloads[0])).toContain("test-database");

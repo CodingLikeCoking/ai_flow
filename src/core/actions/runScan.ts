@@ -16,11 +16,13 @@ import { slugifyProjectName } from "../fs/paths.js";
 import { runBuildVsBuyResearch } from "../research/buildVsBuy.js";
 import { syncRecordsToNotion } from "../notion/syncService.js";
 import { AiFlowDatabase, openDatabase } from "../db/database.js";
+import { loadIngestionState, saveIngestionState } from "../state/stateStore.js";
 
 export interface RunScanOptions {
   config: AiFlowConfig;
   events?: AdapterEvent[];
   db?: AiFlowDatabase;
+  syncNotion?: typeof syncRecordsToNotion;
 }
 
 export async function runScan(options: RunScanOptions): Promise<ScanResult> {
@@ -38,11 +40,17 @@ async function runScanWithDb(
   db: AiFlowDatabase,
   options: RunScanOptions
 ): Promise<ScanResult> {
-  const events = options.events ?? (await collectAllAdapterEvents(options.config));
+  const shouldTrackIngestion = !options.events;
+  const ingestionState = shouldTrackIngestion ? await loadIngestionState(options.config) : null;
+  const events =
+    options.events ?? (await collectAllAdapterEvents(options.config, ingestionState ?? undefined));
   const grouped = groupEvents(events);
   const writtenRecords: NormalizedRecord[] = [];
   const warnings: string[] = [];
   let suggestionsApplied = 0;
+  let recordsCreated = 0;
+  let recordsUpdated = 0;
+  const syncNotion = options.syncNotion ?? syncRecordsToNotion;
 
   for (const group of grouped) {
     if (!group.projectPath) {
@@ -59,23 +67,31 @@ async function runScanWithDb(
       suggestionsApplied += detected.filter((item) => item.confidence >= 0.9).length;
     }
 
+    const existing = db.getRecord(record.recordId);
     db.upsertRecord(record);
     writtenRecords.push(record);
-
-    const notionResult = await syncRecordsToNotion(options.config, [record]);
-    warnings.push(...notionResult.warnings);
-    if (notionResult.syncedCount > 0) {
-      const notionPageId = record.notionPageId;
-      if (notionPageId) {
-        db.updateNotionPageId(record.recordId, notionPageId);
-      }
+    if (existing) {
+      recordsUpdated += 1;
+    } else {
+      recordsCreated += 1;
     }
+
+    const notionResult = await syncNotion(options.config, [record]);
+    warnings.push(...notionResult.warnings);
+    const notionPageId = notionResult.recordPageIds?.[record.recordId];
+    if (notionPageId) {
+      db.updateNotionPageId(record.recordId, notionPageId);
+    }
+  }
+
+  if (ingestionState) {
+    await saveIngestionState(options.config, ingestionState);
   }
 
   return {
     scannedAt: new Date().toISOString(),
-    recordsCreated: writtenRecords.length,
-    recordsUpdated: 0,
+    recordsCreated,
+    recordsUpdated,
     suggestionsApplied,
     warnings
   };
