@@ -39,3 +39,23 @@ For cloud work (especially Vercel), optimize to reduce free-tier usage (bandwidt
 ## Rule 7 — Account hygiene
 
 When cloud usage limits are near exhaustion, proactively suggest account/scope separation or token-based workflows to avoid accidental usage of the wrong account.
+
+## Rule 8 — Approved workflows must run to completion
+
+When the user has already approved a task, workflow, or implementation direction, execute the remaining reversible steps needed to complete that requested outcome without stopping after each substep.
+
+- Treat approval of the overall task as approval to continue through the relevant local workflow: inspect, edit if requested, test if relevant, review, and report results.
+- Give brief progress updates when useful. Do not turn obvious continuation into a permission request.
+- Do not frame routine continuation as a new request for permission with messages like "Next, I'll ..." when you are already expected to continue.
+- Default to finishing the whole approved workflow in one pass, including verification, unless a real blocker appears.
+
+Only stop early for blockers such as:
+
+- destructive or irreversible actions
+- any git write or publication action the user has not explicitly authorized, including commit, amend, rebase, branch creation, push, force-push, tag, PR creation, release, or deployment
+- missing credentials, external approvals, or unavailable infrastructure
+- global or persistent machine changes the user has not explicitly requested
+- conflicting local changes that create material risk
+- genuine ambiguity where proceeding would likely waste work or damage state
+
+If a blocker appears, pause the blocked path, state the blocker plainly, name the decision needed, and continue only unrelated safe work that does not depend on that decision.
