@@ -265,14 +265,29 @@ export function normalizeTargetAudience(
   value: string,
   fallback: AiFlowConfig["ux"]["targetAudience"]
 ): AiFlowConfig["ux"]["targetAudience"] {
+  const parsed = parseTargetAudienceAnswer(value);
+  return parsed.ok ? parsed.value : fallback;
+}
+
+export function parseTargetAudienceAnswer(
+  value: string
+): { ok: true; value: AiFlowConfig["ux"]["targetAudience"] } | { ok: false } {
   const normalized = value.trim().toLowerCase();
   if (normalized === "technical") {
-    return "technical";
+    return {
+      ok: true,
+      value: "technical"
+    };
   }
   if (normalized === "non_technical" || normalized === "non-technical") {
-    return "non_technical";
+    return {
+      ok: true,
+      value: "non_technical"
+    };
   }
-  return fallback;
+  return {
+    ok: false
+  };
 }
 
 export async function runReleaseAutomation(
@@ -341,9 +356,7 @@ async function runGuidedSetup(config: AiFlowConfig): Promise<AiFlowConfig> {
   const rl = createInterface({ input, output });
 
   try {
-    const targetAudience = (await rl.question(
-      "Target audience (`non_technical` or `technical`) [non_technical]: "
-    )).trim() as GuidedSetupAnswers["targetAudience"];
+    const targetAudience = await askTargetAudience(rl, config.ux.targetAudience);
     const enableNotion = await askYesNo(rl, "Enable Notion mirroring?", config.notion.enabled);
     const enableRelease = await askYesNo(
       rl,
@@ -376,6 +389,29 @@ async function askYesNo(
     return defaultValue;
   }
   return answer === "y" || answer === "yes";
+}
+
+async function askTargetAudience(
+  rl: ReturnType<typeof createInterface>,
+  fallback: AiFlowConfig["ux"]["targetAudience"]
+): Promise<AiFlowConfig["ux"]["targetAudience"]> {
+  while (true) {
+    const answer = await rl.question(
+      "Target audience (`non_technical` or `technical`) [non_technical]: "
+    );
+    if (!answer.trim()) {
+      return fallback;
+    }
+
+    const parsed = parseTargetAudienceAnswer(answer);
+    if (parsed.ok) {
+      return parsed.value;
+    }
+
+    process.stdout.write(
+      "Please enter `non_technical` or `technical` so ai-flow can save a valid config.\n"
+    );
+  }
 }
 
 async function execCommand(command: string, args: string[]): Promise<{ stdout?: string }> {

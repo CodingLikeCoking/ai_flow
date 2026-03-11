@@ -94,11 +94,61 @@ describe("notion sync service", () => {
     const savedState = readFileSync(join(config.paths.stateDir, "notion-sync-state.json"), "utf8");
     expect(savedState).toContain("\"project-codex-session-1\": \"page-123\"");
   });
+
+  it("processes Notion sync in configured batches", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-notion-batch-"));
+    const config = await loadAiFlowConfig({
+      homeDir,
+      rawConfig: {
+        performance: {
+          notionBatchSize: 2
+        }
+      }
+    });
+    const createCalls: string[] = [];
+
+    process.env.NOTION_TOKEN = "test-token";
+    process.env.NOTION_DATABASE_ID = "test-database";
+
+    const fakeClient = {
+      databases: {
+        retrieve: async () => ({
+          properties: {
+            Name: { type: "title" }
+          }
+        })
+      },
+      pages: {
+        create: async () => {
+          createCalls.push("create");
+          return { id: `page-${createCalls.length}` };
+        },
+        update: async () => ({ id: "page-existing" })
+      }
+    };
+
+    const records = [
+      buildRecord("batch-1"),
+      buildRecord("batch-2"),
+      buildRecord("batch-3")
+    ];
+    const result = await syncRecordsToNotion(config, records, {
+      client: fakeClient
+    });
+
+    expect(result.syncedCount).toBe(3);
+    expect(createCalls).toHaveLength(3);
+    expect(result.recordPageIds).toEqual({
+      "batch-1": "page-1",
+      "batch-2": "page-2",
+      "batch-3": "page-3"
+    });
+  });
 });
 
-function buildRecord(): NormalizedRecord {
+function buildRecord(recordId = "project-codex-session-1"): NormalizedRecord {
   return {
-    recordId: "project-codex-session-1",
+    recordId,
     projectSlug: "project",
     taskSlug: "sync-notion",
     kind: "PROMPT",

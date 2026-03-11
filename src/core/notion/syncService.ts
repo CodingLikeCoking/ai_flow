@@ -66,34 +66,39 @@ export async function syncRecordsToNotion(
   let syncedCount = 0;
   const warnings: string[] = [];
   const recordPageIds: Record<string, string> = {};
+  const batchSize = Math.max(1, config.performance.notionBatchSize);
 
-  for (const record of records) {
-    const pageId = state.recordToPageId[record.recordId] ?? record.notionPageId;
-    const properties = buildRecordProperties(record, schema);
+  for (let index = 0; index < records.length; index += batchSize) {
+    const batch = records.slice(index, index + batchSize);
 
-    try {
-      if (pageId) {
-        await client.pages.update({
-          page_id: pageId,
-          properties
-        });
-        recordPageIds[record.recordId] = pageId;
-      } else {
-        const created = await client.pages.create({
-          parent: { database_id: databaseId },
-          properties,
-          children: buildRecordChildren(record)
-        });
-        const createdId = getCreatedPageId(created);
-        if (createdId) {
-          state.recordToPageId[record.recordId] = createdId;
-          stateChanged = true;
-          recordPageIds[record.recordId] = createdId;
+    for (const record of batch) {
+      const pageId = state.recordToPageId[record.recordId] ?? record.notionPageId;
+      const properties = buildRecordProperties(record, schema);
+
+      try {
+        if (pageId) {
+          await client.pages.update({
+            page_id: pageId,
+            properties
+          });
+          recordPageIds[record.recordId] = pageId;
+        } else {
+          const created = await client.pages.create({
+            parent: { database_id: databaseId },
+            properties,
+            children: buildRecordChildren(record)
+          });
+          const createdId = getCreatedPageId(created);
+          if (createdId) {
+            state.recordToPageId[record.recordId] = createdId;
+            stateChanged = true;
+            recordPageIds[record.recordId] = createdId;
+          }
         }
+        syncedCount += 1;
+      } catch (error) {
+        warnings.push(`Failed to sync ${record.recordId}: ${getErrorMessage(error)}`);
       }
-      syncedCount += 1;
-    } catch (error) {
-      warnings.push(`Failed to sync ${record.recordId}: ${getErrorMessage(error)}`);
     }
   }
 

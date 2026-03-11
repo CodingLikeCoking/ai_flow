@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyGuidedSetupAnswers,
   normalizeTargetAudience,
+  parseTargetAudienceAnswer,
   runFinalizeCommand,
   runReleaseAutomation
 } from "../../../src/bin/ai-flow.js";
@@ -33,6 +34,16 @@ describe("guided setup", () => {
   it("falls back to the existing audience when guided input is invalid", () => {
     expect(normalizeTargetAudience("nontechnical", "technical")).toBe("technical");
     expect(normalizeTargetAudience("technical", "non_technical")).toBe("technical");
+  });
+
+  it("reports invalid guided setup audience input", () => {
+    expect(parseTargetAudienceAnswer("non-technical")).toEqual({
+      ok: true,
+      value: "non_technical"
+    });
+    expect(parseTargetAudienceAnswer("tech")).toEqual({
+      ok: false
+    });
   });
 });
 
