@@ -45,6 +45,12 @@ Use this repo as the working context for ai-flow setup, operations, and maintena
    - Required passes: `validator`, `reviewer`, `tester`, `optimizer`
    - Add a security-focused review pass for higher-risk work involving auth, secrets, network, shell execution, persistence, permissions, or public attack surface
    - If the environment does not support subagents, emulate the same passes explicitly in sequence
+12. Treat `MRnObrainer` as the hero product by default.
+   - If it has open release blockers, side projects are maintenance-only unless the user explicitly overrides that priority
+13. Prefer stable, repeatable paths over optional complexity.
+   - Keep the default path easy to run and recover
+   - Put experimental power in sidecars, plugins, or explicit opt-in scripts
+14. During weekly review flows, identify at least one workflow, feature, or ritual to cut or simplify.
 
 ## Implementation Guardrails
 

@@ -76,11 +76,33 @@ For non-trivial implementation, configuration, refactor, or debugging tasks, run
 
 ## Rule 10 — End-of-day activity summary
 
-When there has been user-visible work captured during the current day, include a short non-technical summary table at the end of the day.
+When the user has explicitly asked for daily reporting or enabled a daily reporting automation, include a short non-technical summary table at the end of the day.
 
 - Only output the table if there was activity that day.
 - Group entries by project.
 - Use this column format: `Project | What I worked on | Outcome for you | Status`.
 - Write for a non-technical reader and compress repeated micro-steps into one row per project where practical.
-- Also write the daily summary to a Markdown file for that day.
-- Prefer mirroring the daily summary into a separate Notion daily-summary database in day format. If no separate daily database is configured, reuse the existing project Notion database as a fallback.
+- Write the daily summary to a Markdown file or external system only when that reporting destination was explicitly requested by the user or automation setup.
+
+## Rule 11 — Hero product first
+
+When there is a designated hero product with open release blockers, prioritize it over side projects.
+
+- Default the active hero product to `MRnObrainer` unless the user explicitly changes it.
+- Treat side projects as maintenance-only while the hero product has unresolved release blockers, onboarding friction, or live regressions.
+- If work on a side project would delay the hero product without clear leverage, say so plainly and recommend deferring it.
+
+## Rule 12 — Stable path first
+
+Prefer the stable, repeatable path over the most flexible or clever path.
+
+- Keep the default workflow trivial to run and easy to recover.
+- Put optional or experimental power in sidecars, plugins, scripts, or explicit opt-in flows instead of the main path.
+- If a workflow adds operator burden without clearly shortening time-to-ship, cut or demote it.
+
+## Rule 13 — Cut, do not accumulate
+
+Every weekly operating review must identify at least one workflow, feature, automation, or ritual to remove, simplify, or stop using.
+
+- Favor subtraction over adding more permanent process.
+- If two mechanisms solve the same problem, standardize on one and remove the weaker path.

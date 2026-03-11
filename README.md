@@ -140,6 +140,25 @@ Restart already-running Codex and Claude Code sessions after installing so they 
 
 See [`docs/global-agent-setup.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/docs/global-agent-setup.md) for details.
 
+## Hero Product Defaults
+
+The shared global workflow assumes:
+
+- `MRnObrainer` is the hero product by default
+- implementation work uses `validator`, `reviewer`, `tester`, and `optimizer`
+- higher-risk changes also get a `security-reviewer`
+- side projects drop to maintenance-only when the hero product has open release blockers
+
+Additional global roles also ship in [`global/claude-agents/`](/Users/owenwong/Desktop/Programming%20Best%20Practice/global/claude-agents):
+
+- `pm`
+- `dogfooder`
+- `release-manager`
+- `support-triager`
+- `benchmark-watcher`
+
+For the external operator workspace and recurring automations, see [`docs/operator-workspace.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/docs/operator-workspace.md).
+
 ## Run the MCP Server
 
 ### Default `stdio`
