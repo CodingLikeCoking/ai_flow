@@ -120,6 +120,26 @@ ai-flow install claude-hooks
 
 For Claude Code MCP in this repository, the project also ships a root [`.mcp.json`](/Users/owenwong/Desktop/Programming%20Best%20Practice/.mcp.json) entry for `aiFlow`.
 
+## Apply The Shared Workflow Globally
+
+To make this repo the source of truth for your machine-wide agent workflow:
+
+```bash
+./scripts/install-global-agent-workflow.sh
+```
+
+That installer links:
+
+- `~/.codex/instructions.md` to this repo's [`AGENTS.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/AGENTS.md)
+- `~/.claude/CLAUDE.md` to this repo's [`CLAUDE.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/CLAUDE.md)
+- `~/.claude/agents/*.md` to the shared Claude workflow agents in [`global/claude-agents/`](/Users/owenwong/Desktop/Programming%20Best%20Practice/global/claude-agents)
+
+Edits to already-linked files apply immediately on the same machine. If you add, rename, or remove shared Claude agent files, rerun the installer so the managed agent list is reconciled.
+
+Restart already-running Codex and Claude Code sessions after installing so they reload the new global files.
+
+See [`docs/global-agent-setup.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/docs/global-agent-setup.md) for details.
+
 ## Run the MCP Server
 
 ### Default `stdio`
@@ -144,11 +164,13 @@ Set:
 
 - `NOTION_TOKEN`
 - `NOTION_DATABASE_ID`
+- Optional: `NOTION_DAILY_DATABASE_ID` for day-level journals in a separate Notion database
 
 Then use:
 
 ```bash
 ai-flow sync notion
+ai-flow daily-summary --project programming-best-practice
 ```
 
 Setup details live in [`docs/notion-setup.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/docs/notion-setup.md).

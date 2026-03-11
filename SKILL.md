@@ -21,24 +21,30 @@ Use this repo as the working context for ai-flow setup, operations, and maintena
 ## Default Workflow
 
 1. Read `README.md` first for the high-level flow and command surface.
-2. If the user wants local activation:
-   - Run `npm install`
-   - Run `npm run build`
-   - Run `npm run test`
-   - Run `npm link`
-   - Run `ai-flow init --project <path> --project-name "<name>"`
-   - Run `ai-flow doctor`
-3. If the user wants passive background scanning:
+2. If the user has already approved a task or workflow, keep executing the remaining reversible steps needed to complete that requested outcome without waiting for confirmation on each obvious next step.
+3. Only pause when there is a real blocker: destructive actions, unauthorized git write or publication actions, missing credentials, conflicting local changes, global or persistent machine changes, or ambiguity that creates material risk.
+4. Give concise progress updates when useful, but do not stop just to announce routine continuation.
+5. Do not perform global or persistent setup steps such as `npm link`, LaunchAgent installation, hook installation, or writing agent config unless the user explicitly asked for that setup in this session.
+6. If the user explicitly wants local activation, run only the minimum required steps for that goal.
+   - Core local verification: `npm install`, `npm run build`, `npm run test`, `ai-flow doctor`
+   - Optional setup only if explicitly requested: `npm link`, `ai-flow init --project <path> --project-name "<name>"`
+7. If the user wants passive background scanning:
    - Read `docs/launchd-setup.md`
-   - Install the LaunchAgent
-4. If the user wants agent integration:
+   - Show or explain the LaunchAgent steps
+   - Install the LaunchAgent only if the user explicitly asked for that setup
+8. If the user wants agent integration:
    - Read `docs/codex-cursor-mcp-setup.md`
-   - Run `ai-flow print codex-mcp-config` or `ai-flow print cursor-mcp-config`
-   - For Claude Code, read `docs/claude-hooks.md` and run `ai-flow install claude-hooks`
-5. If the user wants Notion:
+   - Run `ai-flow print codex-mcp-config` or `ai-flow print cursor-mcp-config` to show the config
+   - For Claude Code, read `docs/claude-hooks.md`
+   - Write agent config or install hooks only if the user explicitly asked for that setup
+9. If the user wants Notion:
    - Read `docs/notion-setup.md`
-6. If the user wants release or distribution guidance:
+10. If the user wants release or distribution guidance:
    - Read `docs/open-source-release.md`
+11. For non-trivial implementation, configuration, refactor, or debugging work, use a multi-pass workflow before declaring the task done.
+   - Required passes: `validator`, `reviewer`, `tester`, `optimizer`
+   - Add a security-focused review pass for higher-risk work involving auth, secrets, network, shell execution, persistence, permissions, or public attack surface
+   - If the environment does not support subagents, emulate the same passes explicitly in sequence
 
 ## Implementation Guardrails
 
