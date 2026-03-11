@@ -33,4 +33,15 @@ describe("CLI smoke tests", () => {
       port: 8787
     });
   });
+
+  it("registers the expected print subcommands", () => {
+    const program = buildAiFlowProgram();
+    const print = program.commands.find((command) => command.name() === "print");
+
+    expect(print?.commands.map((command) => command.name())).toEqual([
+      "codex-mcp-config",
+      "cursor-mcp-config",
+      "global-rules"
+    ]);
+  });
 });

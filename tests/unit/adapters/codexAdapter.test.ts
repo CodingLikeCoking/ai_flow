@@ -96,4 +96,58 @@ describe("codex adapter", () => {
     expect(second[0].role).toBe("assistant");
     expect(second[0].text).toBe("second response");
   });
+
+  it("respects the configured scan byte budget and resumes on the next pass", async () => {
+    const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-codex-budget-"));
+    const rootDir = join(sandbox, "sessions");
+    const sessionDir = join(rootDir, "2026");
+    const file = join(sessionDir, "session.jsonl");
+    const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+    const state: IngestionState = {
+      version: 2,
+      files: {}
+    };
+    const sessionMetaLine = `${JSON.stringify({
+      type: "session_meta",
+      timestamp: "2026-03-11T00:00:00.000Z",
+      payload: { cwd: "/tmp/project", id: "codex-session-3" }
+    })}\n`;
+    const firstLine = `${JSON.stringify({
+      type: "response_item",
+      timestamp: "2026-03-11T00:00:01.000Z",
+      payload: {
+        type: "message",
+        role: "user",
+        content: [{ type: "output_text", text: "first prompt" }]
+      }
+    })}\n`;
+    const secondLine = `${JSON.stringify({
+      type: "response_item",
+      timestamp: "2026-03-11T00:00:02.000Z",
+      payload: {
+        type: "message",
+        role: "assistant",
+        content: [{ type: "output_text", text: "second response" }]
+      }
+    })}\n`;
+
+    mkdirSync(sessionDir, { recursive: true });
+    writeFileSync(file, `${sessionMetaLine}${firstLine}${secondLine}`, "utf8");
+
+    const first = await readCodexEvents(config, {
+      rootDir,
+      state,
+      maxBytesPerScanPass: Buffer.byteLength(sessionMetaLine) + Buffer.byteLength(firstLine)
+    });
+    expect(first).toHaveLength(1);
+    expect(first[0].text).toBe("first prompt");
+
+    const second = await readCodexEvents(config, {
+      rootDir,
+      state,
+      maxBytesPerScanPass: Buffer.byteLength(secondLine)
+    });
+    expect(second).toHaveLength(1);
+    expect(second[0].text).toBe("second response");
+  });
 });

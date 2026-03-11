@@ -75,4 +75,48 @@ describe("claude transcript adapter", () => {
     expect(second[0].role).toBe("assistant");
     expect(second[0].text).toBe("second response");
   });
+
+  it("respects the configured byte budget and resumes later for claude transcripts", async () => {
+    const sandbox = mkdtempSync(join(tmpdir(), "ai-flow-claude-budget-"));
+    const rootDir = join(sandbox, "transcripts");
+    const file = join(rootDir, "session.jsonl");
+    const config = await loadAiFlowConfig({ homeDir: sandbox, desktopDir: sandbox });
+    const state: IngestionState = {
+      version: 2,
+      files: {}
+    };
+    const firstLine = `${JSON.stringify({
+      type: "user",
+      timestamp: "2026-03-11T00:00:00.000Z",
+      sessionId: "claude-session-3",
+      project: "/tmp/project",
+      content: "first prompt"
+    })}\n`;
+    const secondLine = `${JSON.stringify({
+      type: "assistant",
+      timestamp: "2026-03-11T00:00:01.000Z",
+      sessionId: "claude-session-3",
+      project: "/tmp/project",
+      content: "second response"
+    })}\n`;
+
+    mkdirSync(rootDir, { recursive: true });
+    writeFileSync(file, `${firstLine}${secondLine}`, "utf8");
+
+    const first = await readClaudeTranscriptEvents(config, {
+      rootDir,
+      state,
+      maxBytesPerScanPass: Buffer.byteLength(firstLine)
+    });
+    expect(first).toHaveLength(1);
+    expect(first[0].text).toBe("first prompt");
+
+    const second = await readClaudeTranscriptEvents(config, {
+      rootDir,
+      state,
+      maxBytesPerScanPass: Buffer.byteLength(secondLine)
+    });
+    expect(second).toHaveLength(1);
+    expect(second[0].text).toBe("second response");
+  });
 });

@@ -10,6 +10,7 @@ import type { AdapterEvent, AiFlowConfig } from "../types.js";
 interface ClaudeScanOptions {
   rootDir?: string;
   state?: IngestionState;
+  maxBytesPerScanPass?: number;
 }
 
 export async function readClaudeTranscriptEvents(
@@ -34,27 +35,33 @@ export async function readClaudeTranscriptEvents(
       continue;
     }
 
-    for await (const line of readJsonLines(file, startOffset)) {
+    const consumedOffset = await readJsonLines(
+      file,
+      startOffset,
+      options.maxBytesPerScanPass,
+      async (line) => {
       if (!line.trim()) {
-        continue;
+          return;
       }
 
       const record = safeParse(line);
       if (!record) {
-        continue;
+          return;
       }
 
       const event = mapClaudeRecordToEvent(record, file);
       if (event) {
         events.push(event);
       }
-    }
+      }
+    );
+    const finalStats = await safeStat(file);
 
     if (options.state) {
       options.state.files[fileStateKey] = {
-        offset: stats.size,
-        size: stats.size,
-        mtimeMs: stats.mtimeMs
+        offset: consumedOffset,
+        size: consumedOffset,
+        mtimeMs: finalStats?.mtimeMs ?? stats.mtimeMs
       };
     }
   }
@@ -122,10 +129,16 @@ async function safeStat(path: string): Promise<{ size: number; mtimeMs: number }
   }
 }
 
-async function* readJsonLines(path: string, start = 0): AsyncGenerator<string> {
+async function readJsonLines(
+  path: string,
+  start: number,
+  maxBytes: number | undefined,
+  onLine: (line: string) => Promise<void> | void
+): Promise<number> {
   const stream = createReadStream(path, {
     encoding: "utf8",
-    start
+    start,
+    end: typeof maxBytes === "number" ? start + maxBytes - 1 : undefined
   });
   const reader = readline.createInterface({
     input: stream,
@@ -134,12 +147,14 @@ async function* readJsonLines(path: string, start = 0): AsyncGenerator<string> {
 
   try {
     for await (const line of reader) {
-      yield line;
+      await onLine(line);
     }
   } finally {
     reader.close();
     stream.destroy();
   }
+
+  return start + stream.bytesRead;
 }
 
 function safeParse(line: string): Record<string, unknown> | null {

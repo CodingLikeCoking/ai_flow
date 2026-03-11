@@ -28,6 +28,7 @@ describe("config loader", () => {
     expect(config.ux.targetAudience).toBe("non_technical");
     expect(config.workflow.searchBeforeBuild).toBe(true);
     expect(config.performance.streamingIngestion).toBe(true);
+    expect(config.performance.maxBytesPerScanPass).toBe(8_388_608);
     expect(config.release.autoPush).toBe(true);
   });
 

@@ -170,6 +170,21 @@ export function buildAiFlowProgram(): Command {
     process.stdout.write(JSON.stringify(buildMcpClientSnippet("cursor"), null, 2));
     process.stdout.write("\n");
   });
+  print.command("global-rules").action(() =>
+    runWithConfig(async (config) => {
+      process.stdout.write(
+        `${JSON.stringify(
+          {
+            targetAudience: config.ux.targetAudience,
+            repeatedPromptRules: config.workflow.repeatedPromptRules,
+            providerRules: config.workflow.providerRules
+          },
+          null,
+          2
+        )}\n`
+      );
+    })
+  );
 
   program
     .command("release")
@@ -214,7 +229,7 @@ interface GuidedSetupAnswers {
 
 interface ReleaseAutomationOptions {
   commitMessage?: string;
-  exec?: (command: string, args: string[]) => Promise<void>;
+  exec?: (command: string, args: string[]) => Promise<{ stdout?: string } | void>;
 }
 
 interface FinalizeCommandOptions {
@@ -246,6 +261,20 @@ export function applyGuidedSetupAnswers(
   };
 }
 
+export function normalizeTargetAudience(
+  value: string,
+  fallback: AiFlowConfig["ux"]["targetAudience"]
+): AiFlowConfig["ux"]["targetAudience"] {
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "technical") {
+    return "technical";
+  }
+  if (normalized === "non_technical" || normalized === "non-technical") {
+    return "non_technical";
+  }
+  return fallback;
+}
+
 export async function runReleaseAutomation(
   config: AiFlowConfig,
   options: ReleaseAutomationOptions = {}
@@ -266,6 +295,20 @@ export async function runReleaseAutomation(
   if (config.release.refreshLocalApp) {
     const { command, args } = splitCommand(config.release.refreshCommand);
     await exec(command, args);
+  }
+
+  const statusResult = await exec("git", ["status", "--porcelain"]);
+  const statusText = statusResult?.stdout?.trim() ?? "";
+  if (!statusText) {
+    return {
+      ran: true,
+      message: "Release checks passed and the working tree is already clean."
+    };
+  }
+  if (statusText.split("\n").some((line) => line.startsWith("?? "))) {
+    throw new Error(
+      "Release automation refuses to auto-commit untracked files. Stage or remove them first."
+    );
   }
 
   const commitMessage = options.commitMessage ?? config.release.commitMessageTemplate;
@@ -312,7 +355,7 @@ async function runGuidedSetup(config: AiFlowConfig): Promise<AiFlowConfig> {
       : false;
 
     return applyGuidedSetupAnswers(config, {
-      targetAudience: targetAudience || config.ux.targetAudience,
+      targetAudience: normalizeTargetAudience(targetAudience, config.ux.targetAudience),
       enableNotion,
       enableRelease,
       autoPush
@@ -335,20 +378,38 @@ async function askYesNo(
   return answer === "y" || answer === "yes";
 }
 
-async function execCommand(command: string, args: string[]): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+async function execCommand(command: string, args: string[]): Promise<{ stdout?: string }> {
+  return await new Promise<{ stdout?: string }>((resolve, reject) => {
     const child = spawn(command, args, {
-      stdio: "inherit"
+      stdio: ["inherit", "pipe", "pipe"]
+    });
+    let stdoutText = "";
+    let stderrText = "";
+
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      const text = chunk.toString();
+      stdoutText += text;
+      process.stdout.write(text);
+    });
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      const text = chunk.toString();
+      stderrText += text;
+      process.stderr.write(text);
     });
 
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) {
-        resolve();
+        resolve({ stdout: stdoutText });
         return;
       }
 
-      reject(new Error(`Command failed: ${command} ${args.join(" ")} (exit ${code ?? "null"})`));
+      const stderrSuffix = stderrText.trim() ? `\n${stderrText.trim()}` : "";
+      reject(
+        new Error(
+          `Command failed: ${command} ${args.join(" ")} (exit ${code ?? "null"})${stderrSuffix}`
+        )
+      );
     });
   });
 }

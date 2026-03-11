@@ -4,13 +4,24 @@ import { readClaudeTranscriptEvents } from "./claudeTranscriptAdapter.js";
 import { readCodexEvents } from "./codexAdapter.js";
 import { readCursorEvents } from "./cursorAdapter.js";
 
+interface CollectAdapterEventsOptions {
+  state?: IngestionState;
+  maxBytesPerScanPass?: number;
+}
+
 export async function collectAllAdapterEvents(
   config: AiFlowConfig,
-  state?: IngestionState
+  options: CollectAdapterEventsOptions = {}
 ): Promise<AdapterEvent[]> {
   const [codex, claude, cursor] = await Promise.all([
-    readCodexEvents(config, { state }),
-    readClaudeTranscriptEvents(config, { state }),
+    readCodexEvents(config, {
+      state: options.state,
+      maxBytesPerScanPass: options.maxBytesPerScanPass
+    }),
+    readClaudeTranscriptEvents(config, {
+      state: options.state,
+      maxBytesPerScanPass: options.maxBytesPerScanPass
+    }),
     readCursorEvents(config)
   ]);
 

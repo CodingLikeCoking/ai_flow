@@ -40,10 +40,15 @@ async function runScanWithDb(
   db: AiFlowDatabase,
   options: RunScanOptions
 ): Promise<ScanResult> {
-  const shouldTrackIngestion = !options.events;
+  const shouldTrackIngestion =
+    !options.events && options.config.performance.streamingIngestion;
   const ingestionState = shouldTrackIngestion ? await loadIngestionState(options.config) : null;
-  const events =
-    options.events ?? (await collectAllAdapterEvents(options.config, ingestionState ?? undefined));
+  const events = options.events ?? (
+    await collectAllAdapterEvents(options.config, {
+      state: ingestionState ?? undefined,
+      maxBytesPerScanPass: options.config.performance.maxBytesPerScanPass
+    })
+  );
   const grouped = groupEvents(events);
   const writtenRecords: NormalizedRecord[] = [];
   const warnings: string[] = [];

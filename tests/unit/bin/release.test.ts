@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   applyGuidedSetupAnswers,
+  normalizeTargetAudience,
   runFinalizeCommand,
   runReleaseAutomation
 } from "../../../src/bin/ai-flow.js";
@@ -28,6 +29,11 @@ describe("guided setup", () => {
     expect(updated.release.enabled).toBe(true);
     expect(updated.release.autoPush).toBe(true);
   });
+
+  it("falls back to the existing audience when guided input is invalid", () => {
+    expect(normalizeTargetAudience("nontechnical", "technical")).toBe("technical");
+    expect(normalizeTargetAudience("technical", "non_technical")).toBe("technical");
+  });
 });
 
 describe("release automation", () => {
@@ -40,6 +46,9 @@ describe("release automation", () => {
       commitMessage: "feat: ship ai-flow core upgrade",
       exec: async (command, args) => {
         commands.push([command, ...args].join(" "));
+        if (command === "git" && args[0] === "status") {
+          return { stdout: " M src/bin/ai-flow.ts\n" };
+        }
       }
     });
 
@@ -49,6 +58,7 @@ describe("release automation", () => {
       "npm test",
       "npm run build",
       "npm link",
+      "git status --porcelain",
       "git add -A",
       "git commit -m feat: ship ai-flow core upgrade",
       "git push origin HEAD"
@@ -75,6 +85,46 @@ describe("release automation", () => {
 
     expect(result.ran).toBe(false);
     expect(commands).toEqual([]);
+  });
+
+  it("treats a clean worktree as a no-op release after validation", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-release-clean-"));
+    const config = await loadAiFlowConfig({ homeDir });
+    const commands: string[] = [];
+
+    const result = await runReleaseAutomation(config, {
+      exec: async (command, args) => {
+        commands.push([command, ...args].join(" "));
+        if (command === "git" && args[0] === "status") {
+          return { stdout: "" };
+        }
+      }
+    });
+
+    expect(result.ran).toBe(true);
+    expect(result.message).toContain("already clean");
+    expect(commands).toEqual([
+      "npm run typecheck",
+      "npm test",
+      "npm run build",
+      "npm link",
+      "git status --porcelain"
+    ]);
+  });
+
+  it("refuses to auto-commit untracked files", async () => {
+    const homeDir = mkdtempSync(join(tmpdir(), "ai-flow-release-untracked-"));
+    const config = await loadAiFlowConfig({ homeDir });
+
+    await expect(
+      runReleaseAutomation(config, {
+        exec: async (command, args) => {
+          if (command === "git" && args[0] === "status") {
+            return { stdout: "?? notes.txt\n" };
+          }
+        }
+      })
+    ).rejects.toThrow("untracked files");
   });
 });
 
