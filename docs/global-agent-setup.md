@@ -4,6 +4,8 @@ This repo can act as the source of truth for your machine-wide agent workflow.
 
 The setup script links your live user-level config back to this repository so edits to already-linked files apply automatically on the same machine.
 
+This is not chat-local. After install, new Codex and Claude sessions across projects on that device use these shared defaults automatically.
+
 If you add, rename, or remove files under `global/claude-agents/`, rerun the installer so the managed user-agent list is reconciled.
 
 ## What It Configures

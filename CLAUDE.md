@@ -13,6 +13,7 @@ Before proposing or implementing ANY new build, you MUST actively search for exi
 
 When the user provides a plan, spec, or asks you to plan a build:
 
+0. **Lock requirements first.** Before drafting architecture or emitting any final plan, extract every explicit requirement, constraint, preference, and acceptance condition from all user turns in the current task into a flat checklist. Mark each item as `Covered`, `Deferred`, or `Open question`. Do NOT finalize the plan until every extracted item has a status.
 1. **Visualize first.** Generate a Mermaid diagram of the plan — showing components, data flow, and dependencies — so the user can see the architecture at a glance.
 2. **Break down into blocks.** Decompose the plan into individual tasks / building blocks.
 3. **Search per block.** For EACH block, search the web (GitHub, GitLab, HuggingFace, npm, PyPI, etc.) for free, open-source tools, libraries, or existing repos that can fulfil that block. Try multiple keyword variations per block.
@@ -65,6 +66,7 @@ If a blocker appears, pause the blocked path, state the blocker plainly, name th
 For non-trivial implementation, configuration, refactor, or debugging tasks, run a multi-pass workflow instead of treating a single draft as complete.
 
 - Use subagents when the client supports them. If subagents are unavailable, emulate the same workflow with clearly separated passes.
+- Keep the passes mostly internal so the user experiences one continuous workflow instead of repeated approval handoffs.
 - Required passes:
   - `validator`: spec compliance, missing requirements, and accidental scope creep
   - `reviewer`: bugs, regressions, security concerns, and maintainability risks
@@ -106,3 +108,13 @@ Every weekly operating review must identify at least one workflow, feature, auto
 
 - Favor subtraction over adding more permanent process.
 - If two mechanisms solve the same problem, standardize on one and remove the weaker path.
+
+## Rule 14 — Solo operator defaults
+
+Assume a one-person team unless the user says otherwise. Optimize for shipping speed with low operator overhead.
+
+- Default to working directly on `main` when the user has authorized git writes.
+- Do not introduce branch workflows, PR choreography, release branches, or rebase rituals unless the user explicitly asks for them or the repository already requires them.
+- Prefer one clear path that inspects, edits, verifies, and reports in one pass.
+- Use the full available context budget to reduce back-and-forth, but spend it on doing the work rather than narrating the workflow.
+- If extra process does not materially reduce risk or time-to-ship, cut it.

@@ -138,6 +138,8 @@ Edits to already-linked files apply immediately on the same machine. If you add,
 
 Restart already-running Codex and Claude Code sessions after installing so they reload the new global files.
 
+This is not limited to one chat. After install, new Codex and Claude sessions across projects on that device inherit these shared defaults automatically.
+
 See [`docs/global-agent-setup.md`](/Users/owenwong/Desktop/Programming%20Best%20Practice/docs/global-agent-setup.md) for details.
 
 ## Hero Product Defaults
@@ -145,6 +147,8 @@ See [`docs/global-agent-setup.md`](/Users/owenwong/Desktop/Programming%20Best%20
 The shared global workflow assumes:
 
 - `MRnObrainer` is the hero product by default
+- you are usually operating as a one-person team
+- once git writes are authorized, the default path is to work directly on `main`
 - implementation work uses `validator`, `reviewer`, `tester`, and `optimizer`
 - higher-risk changes also get a `security-reviewer`
 - side projects drop to maintenance-only when the hero product has open release blockers
